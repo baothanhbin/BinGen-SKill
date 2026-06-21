@@ -1,10 +1,10 @@
-![Gen App Compose Multi Module Banner](assets/readme-banner.png)
+![Compose Multi-Module Banner](assets/readme-banner.png)
 
 # Skill Gen App Compose Multi Module
 
-Skill Codex de scaffold mot Android project moi theo cau truc Compose multi-module, bam style to chuc cua `AgriDoctorAI`.
+A Codex skill for scaffolding a brand-new Android project with a Compose-first multi-module architecture inspired by the `AgriDoctorAI` structure.
 
-## Repo layout
+## Layout
 
 ```text
 skills/
@@ -15,39 +15,37 @@ skills/
     scripts/
 ```
 
-## Cai bang CLI kieu `npx skills add`
+## Install
 
-Repo nay da theo layout `skills/...`, nen Codex CLI co the quet truc tiep dung kieu skills repo.
-
-Cai toan bo skill co trong repo:
+Install every skill in this repo:
 
 ```powershell
 npx skills add https://github.com/baothanhbin/BinGen-SKill
 ```
 
-Hoac chi dinh dung skill can cai:
+Install only this skill:
 
 ```powershell
 npx skills add https://github.com/baothanhbin/BinGen-SKill --skill "skill-gen-app-compose-multi-module"
 ```
 
-Sau khi cai, restart Codex de skill moi duoc load.
+Restart Codex after installation so the new skill is loaded.
 
-## Cai thu cong vao Codex
+## Manual Install
 
-Copy folder nay vao:
+Copy this folder into your Codex skills directory:
 
 ```text
 %USERPROFILE%\.codex\skills\skill-gen-app-compose-multi-module
 ```
 
-Folder can copy la:
+Source folder:
 
 ```text
 skills/skill-gen-app-compose-multi-module
 ```
 
-## Cach goi trong Codex
+## Usage
 
 ```text
 Use $skill-gen-app-compose-multi-module to scaffold a new Android project with a Compose multi-module architecture.
