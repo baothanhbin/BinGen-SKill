@@ -23,10 +23,11 @@ If the user does not specify all of them, make reasonable defaults and state the
 ## Workflow
 1. Read `references/architecture.md` first.
 2. Read `references/scaffold-spec.md` before creating files.
-3. Create the project skeleton by running `scripts/scaffold_project.py`.
-4. After the scaffold finishes, inspect the generated tree and fill any project-specific gaps the user requested.
-5. If the user asked for initial features, add one feature end-to-end first, then clone the pattern to the remaining features.
-6. Validate the scaffold by checking root Gradle files, module includes, namespaces, and at least one representative feature module.
+3. Read `references/code-patterns.md` before generating feature code, Hilt modules, navigation files, or repository wiring.
+4. Create the project skeleton by running `scripts/scaffold_project.py`.
+5. After the scaffold finishes, inspect the generated tree and fill any project-specific gaps the user requested.
+6. If the user asked for initial features, add one feature end-to-end first, then clone the pattern to the remaining features.
+7. Validate the scaffold by checking root Gradle files, module includes, namespaces, and at least one representative feature module.
 
 ## Execution Rules
 - Prefer creating the real project files instead of only describing what to do.
@@ -85,9 +86,11 @@ Optional flags:
 ## References
 - Read `references/architecture.md` for the target architecture, dependency rules, naming, and module responsibilities.
 - Read `references/scaffold-spec.md` for the exact scaffold phases, file map, and generated content expectations.
+- Read `references/code-patterns.md` for the default implementation shape of `Route`, `Screen`, `ViewModel`, Hilt modules, repository wiring, DataStore wiring, Room wiring, and feature navigation.
 
 ## Output Expectations
 - Produce a real scaffolded project, not just prose.
 - Keep generated names internally consistent across packages, namespaces, routes, and Gradle accessors.
 - State the assumptions you made if the user left parts unspecified.
 - If the user later wants more features, extend the scaffold instead of rebuilding it.
+- When extending the scaffold, follow the code patterns reference instead of inventing a new structure.
