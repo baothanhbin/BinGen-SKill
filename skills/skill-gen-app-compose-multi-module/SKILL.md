@@ -26,10 +26,11 @@ If the user does not specify all of them, make reasonable defaults and state the
 3. Read `references/app-shell-patterns.md` before generating or changing the `app` module.
 4. Read `references/core-module-patterns.md` before generating or changing any `core/*` module.
 5. Read `references/feature-patterns.md` and `references/code-patterns.md` before generating feature code, Hilt modules, navigation files, or repository wiring.
-6. Create the project skeleton by running `scripts/scaffold_project.py`.
-7. After the scaffold finishes, inspect the generated tree and fill any project-specific gaps the user requested.
-8. If the user asked for initial features, add one feature end-to-end first, then clone the pattern to the remaining features.
-9. Validate the scaffold by reading `references/validation-checklist.md` and checking root Gradle files, module includes, namespaces, and at least one representative feature module.
+6. Read `references/golden-file-examples.md` before generating or refining `MainActivity`, `MainNavHost`, starter feature files, repository files, or network module files.
+7. Create the project skeleton by running `scripts/scaffold_project.py`.
+8. After the scaffold finishes, inspect the generated tree and fill any project-specific gaps the user requested.
+9. If the user asked for initial features, add one feature end-to-end first, then clone the pattern to the remaining features.
+10. Validate the scaffold by reading `references/validation-checklist.md` and checking root Gradle files, module includes, namespaces, and at least one representative feature module.
 
 ## Execution Rules
 - Prefer creating the real project files instead of only describing what to do.
@@ -95,6 +96,7 @@ Optional flags:
 - Read `references/core-module-patterns.md` for infra module boundaries and DI expectations.
 - Read `references/feature-patterns.md` for feature file map, route/screen/viewmodel split, and navigation defaults.
 - Read `references/code-patterns.md` for the default implementation shape of `Route`, `Screen`, `ViewModel`, Hilt modules, repository wiring, DataStore wiring, Room wiring, and feature navigation.
+- Read `references/golden-file-examples.md` for the closest file-shape references of the most important starter files.
 - Read `references/validation-checklist.md` before declaring the scaffold complete.
 
 ## Output Expectations

@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from textwrap import dedent
+from textwrap import dedent, indent
 
 
 def slugify(value: str) -> str:
@@ -27,6 +27,10 @@ def plugin_ref(alias: str) -> str:
 
 def library_ref(alias: str) -> str:
     return f"libs.{catalog_accessor(alias)}"
+
+
+def block(text: str, spaces: int = 20) -> str:
+    return indent(dedent(text).strip(), " " * spaces)
 
 
 def feature_pascal(name: str) -> str:
@@ -1107,6 +1111,64 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
     if has_login:
         feature_dependencies.append("    implementation(projects.feature.login)")
     feature_dependency_block = "\n".join(feature_dependencies)
+    home_imports = ""
+    login_imports = ""
+    nav_graph_entries = ""
+    if has_home:
+        home_imports = dedent(
+            f"""
+            import {base_package}.feature.home.navigation.HOME_ROUTE
+            import {base_package}.feature.home.navigation.homeScreen
+            import {base_package}.feature.home.navigation.navigateToHome
+            """
+        ).strip()
+    if has_login:
+        login_imports = dedent(
+            f"""
+            import {base_package}.feature.login.navigation.LOGIN_ROUTE
+            import {base_package}.feature.login.navigation.loginScreen
+            import {base_package}.feature.login.navigation.navigateToLogin
+            """
+        ).strip()
+    if has_login and has_home:
+        nav_graph_entries = "\n".join(
+            [
+                block(
+                    """
+                    loginScreen(
+                        onNavigateToHome = appState.navController::navigateToHome,
+                    )
+                    """,
+                    spaces=20,
+                ),
+                block(
+                    """
+                    homeScreen(
+                        onNavigateToLogin = appState.navController::navigateToLogin,
+                    )
+                    """,
+                    spaces=20,
+                ),
+            ]
+        )
+    elif has_home:
+        nav_graph_entries = block(
+            """
+            homeScreen(
+                onNavigateToLogin = {},
+            )
+            """,
+            spaces=20,
+        )
+    elif has_login:
+        nav_graph_entries = block(
+            """
+            loginScreen(
+                onNavigateToHome = {},
+            )
+            """,
+            spaces=20,
+        )
     write_file(
         app_path / "build.gradle.kts",
         dedent(
@@ -1242,6 +1304,8 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             import androidx.compose.ui.Modifier
             import androidx.lifecycle.compose.collectAsStateWithLifecycle
             import {base_package}.core.theme.AppTheme
+            {f'import {base_package}.feature.home.navigation.HOME_ROUTE' if has_home else ''}
+            {f'import {base_package}.feature.login.navigation.LOGIN_ROUTE' if has_login else ''}
             import {base_package}.navigation.rememberAppState
             import {base_package}.ui.MainApp
             import dagger.hilt.android.AndroidEntryPoint
@@ -1277,7 +1341,7 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             f"""
             package {base_package}.navigation
 
-            {f'import {base_package}.feature.home.navigation.HOME_ROUTE' if has_home else ''}
+            {home_imports if has_home else ''}
 
             enum class TopLevelDestination(
                 val route: String
@@ -1324,12 +1388,8 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             import androidx.compose.runtime.Composable
             import androidx.compose.ui.Modifier
             import androidx.navigation.compose.NavHost
-            {"import " + base_package + ".feature.home.navigation.HOME_ROUTE" if has_home else ""}
-            {"import " + base_package + ".feature.home.navigation.homeScreen" if has_home else ""}
-            {"import " + base_package + ".feature.home.navigation.navigateToHome" if has_home else ""}
-            {"import " + base_package + ".feature.login.navigation.LOGIN_ROUTE" if has_login else ""}
-            {"import " + base_package + ".feature.login.navigation.loginScreen" if has_login else ""}
-            {"import " + base_package + ".feature.login.navigation.navigateToLogin" if has_login else ""}
+            {home_imports if has_home else ""}
+            {login_imports if has_login else ""}
 
             @Composable
             fun MainNavHost(
@@ -1342,26 +1402,7 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
                     navController = appState.navController,
                     startDestination = startDestination
                 ) {{
-                    {dedent(f'''
-                    loginScreen(
-                        onNavigateToHome = appState.navController::navigateToHome,
-                    )
-                    ''' ).strip() if has_login and has_home else ""}
-                    {dedent(f'''
-                    homeScreen(
-                        onNavigateToLogin = appState.navController::navigateToLogin,
-                    )
-                    ''' ).strip() if has_home and has_login else ""}
-                    {dedent(f'''
-                    homeScreen(
-                        onNavigateToLogin = {{}},
-                    )
-                    ''' ).strip() if has_home and not has_login else ""}
-                    {dedent(f'''
-                    loginScreen(
-                        onNavigateToHome = {{}},
-                    )
-                    ''' ).strip() if has_login and not has_home else ""}
+{nav_graph_entries}
                 }}
             }}
             """
