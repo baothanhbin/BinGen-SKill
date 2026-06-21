@@ -1,3 +1,5 @@
+![Gen App Compose Multi Module Banner](assets/readme-banner.png)
+
 # Skill Gen App Compose Multi Module
 
 Skill Codex de scaffold mot Android project moi theo cau truc Compose multi-module, bam style to chuc cua `AgriDoctorAI`.
