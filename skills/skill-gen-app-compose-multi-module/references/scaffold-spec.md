@@ -37,12 +37,19 @@ Generate these modules with minimal but valid contents:
 - `core:database`
 - `core:datastore`
 - `core:alarm`
+- `core:worker`
 
 Each module should include:
 - `build.gradle.kts`
 - `consumer-rules.pro`
 - `proguard-rules.pro`
 - `src/main/AndroidManifest.xml`
+
+`core:worker` expectations:
+- include WorkManager dependencies
+- include at least one example worker
+- include a scheduler abstraction and one WorkManager-backed implementation
+- keep worker DI inside the module, not in `feature/*`
 
 ## Phase 4: App Shell
 Generate:

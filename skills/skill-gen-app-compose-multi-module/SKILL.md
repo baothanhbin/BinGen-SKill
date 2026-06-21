@@ -25,12 +25,13 @@ If the user does not specify all of them, make reasonable defaults and state the
 2. Read `references/scaffold-spec.md` before creating files.
 3. Read `references/app-shell-patterns.md` before generating or changing the `app` module.
 4. Read `references/core-module-patterns.md` before generating or changing any `core/*` module.
-5. Read `references/feature-patterns.md` and `references/code-patterns.md` before generating feature code, Hilt modules, navigation files, or repository wiring.
-6. Read `references/golden-file-examples.md` before generating or refining `MainActivity`, `MainNavHost`, starter feature files, repository files, or network module files.
-7. Create the project skeleton by running `scripts/scaffold_project.py`.
-8. After the scaffold finishes, inspect the generated tree and fill any project-specific gaps the user requested.
-9. If the user asked for initial features, add one feature end-to-end first, then clone the pattern to the remaining features.
-10. Validate the scaffold by reading `references/validation-checklist.md` and checking root Gradle files, module includes, namespaces, and at least one representative feature module.
+5. Read `references/worker-patterns.md` and `references/golden-worker-examples.md` before generating `core:worker`, WorkManager wiring, sync jobs, retry jobs, or `App.kt` worker factory setup.
+6. Read `references/feature-patterns.md` and `references/code-patterns.md` before generating feature code, Hilt modules, navigation files, repository wiring, DataStore wiring, Room wiring, or worker scheduler wiring.
+7. Read `references/golden-file-examples.md` before generating or refining `MainActivity`, `MainNavHost`, starter feature files, repository files, or network module files.
+8. Create the project skeleton by running `scripts/scaffold_project.py`.
+9. After the scaffold finishes, inspect the generated tree and fill any project-specific gaps the user requested.
+10. If the user asked for initial features, add one feature end-to-end first, then clone the pattern to the remaining features.
+11. Validate the scaffold by reading `references/validation-checklist.md` and checking root Gradle files, module includes, namespaces, and at least one representative feature module.
 
 ## Execution Rules
 - Prefer creating the real project files instead of only describing what to do.
@@ -39,12 +40,14 @@ If the user does not specify all of them, make reasonable defaults and state the
 - Keep `Screen` focused on UI-ready state and callbacks.
 - Keep reusable UI pieces in `component/`, with `dialog/` and `sheet/` only when needed.
 - Keep repositories in `core:data`, Room in `core:database`, Proto DataStore in `core:datastore`, and Ktor access in `core:network`.
+- Keep WorkManager workers, scheduler abstractions, and enqueue policies in `core:worker`.
 - Avoid introducing domain/use-case layers unless the user explicitly wants a different architecture.
 - Avoid `feature -> feature` dependencies in fresh scaffolds unless the requested flow clearly benefits from it.
 - Default new code to `collectAsStateWithLifecycle()`, `StateFlow` for durable state, and `SharedFlow` for one-off events.
 - Avoid leaving placeholder-shaped app shell or feature files when the user expects a starter project that is ready to extend.
 - Remove or rename any leftover project-specific naming from older examples unless the user explicitly wants it.
 - Prefer Hilt-provided modules over global singleton objects when generating infra code for network, data, or persistence layers.
+- If `core:worker` is part of the scaffold, wire `HiltWorkerFactory` in `app/App.kt` instead of leaving workers half-configured.
 
 ## Scaffolding Order
 1. Create root Gradle files and `settings.gradle.kts`.
@@ -60,6 +63,7 @@ If the user does not specify all of them, make reasonable defaults and state the
    - `core:database`
    - `core:datastore`
    - `core:alarm`
+   - `core:worker`
 5. Create `app` shell with:
    - `App.kt`
    - `MainActivity.kt`
@@ -96,7 +100,9 @@ Optional flags:
 - Read `references/core-module-patterns.md` for infra module boundaries and DI expectations.
 - Read `references/feature-patterns.md` for feature file map, route/screen/viewmodel split, and navigation defaults.
 - Read `references/code-patterns.md` for the default implementation shape of `Route`, `Screen`, `ViewModel`, Hilt modules, repository wiring, DataStore wiring, Room wiring, and feature navigation.
+- Read `references/worker-patterns.md` for `@HiltWorker`, `@AssistedInject`, scheduler abstraction, and `App.kt` WorkManager setup.
 - Read `references/golden-file-examples.md` for the closest file-shape references of the most important starter files.
+- Read `references/golden-worker-examples.md` for the closest starter file shapes of `SyncWorker`, scheduler bindings, and worker-ready `App.kt`.
 - Read `references/validation-checklist.md` before declaring the scaffold complete.
 
 ## Output Expectations

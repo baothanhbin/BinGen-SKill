@@ -19,6 +19,7 @@ core/data/
 core/database/
 core/datastore/
 core/alarm/
+core/worker/
 feature/home/
 feature/login/
 feature/<future-feature>/
@@ -36,6 +37,7 @@ feature/<future-feature>/
 - `core:database`: Room database, DAOs, entities, converters, DB DI
 - `core:datastore`: Proto DataStore wrappers and `.proto` files
 - `core:alarm`: reminder/alarm scheduler and receivers
+- `core:worker`: WorkManager workers, scheduler interfaces, and Hilt-backed background job wiring
 - `feature:*`: UI, ViewModel, navigation, components, dialogs, sheets per feature
 
 ## Feature Structure
@@ -81,6 +83,7 @@ Add `dialog/` or `sheet/` only when needed.
 - put repository contracts and impls in `core:data`
 - put Room entities and DAOs in `core:database`
 - put token/session persistence in `core:datastore`
+- put WorkManager workers and enqueue policies in `core:worker`
 - use Hilt for app-wide dependency wiring
 
 ## Build Rules

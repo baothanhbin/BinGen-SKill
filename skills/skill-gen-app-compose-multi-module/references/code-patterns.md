@@ -9,6 +9,7 @@ Use these patterns when extending the scaffold after the base project is generat
 - Hilt repository wiring
 - Room database wiring
 - Proto DataStore wiring
+- Worker DI wiring
 - App-level navigation registration
 
 ## Feature route + screen split
@@ -274,6 +275,50 @@ fun MainNavHost(
     }
 }
 ```
+
+## Worker DI wiring
+
+Use this pattern when background sync or scheduled jobs are needed:
+
+```kotlin
+@HiltWorker
+class SyncWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+    private val authRepository: AuthRepository,
+) : CoroutineWorker(appContext, params) {
+
+    override suspend fun doWork(): Result {
+        val token = authRepository.getToken() ?: return Result.retry()
+        return Result.success()
+    }
+}
+
+interface SyncScheduler {
+    fun enqueueSync()
+}
+
+class WorkManagerSyncScheduler @Inject constructor(
+    @ApplicationContext private val context: Context,
+) : SyncScheduler {
+    override fun enqueueSync() {
+        val request = OneTimeWorkRequestBuilder<SyncWorker>().build()
+        WorkManager.getInstance(context).enqueue(request)
+    }
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class WorkerSchedulerModule {
+
+    @Binds
+    abstract fun bindSyncScheduler(
+        impl: WorkManagerSyncScheduler,
+    ): SyncScheduler
+}
+```
+
+Also wire `HiltWorkerFactory` in `App.kt` when generating worker-ready app shells.
 
 ## Usage Rule
 

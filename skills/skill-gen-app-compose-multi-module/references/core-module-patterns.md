@@ -12,6 +12,7 @@ Use this file when generating or refining `core/*` modules.
 - `core:database`: Room entities, DAO, database, DI
 - `core:datastore`: Proto definitions, serializers, local persistence
 - `core:alarm`: scheduler or receiver shell
+- `core:worker`: WorkManager workers and scheduler abstractions
 
 ## Plugin Rule
 
@@ -26,6 +27,7 @@ Non-UI modules should use the plain android module convention:
 - `core:database`
 - `core:datastore`
 - `core:alarm`
+- `core:worker`
 
 ## core:network
 
@@ -153,3 +155,41 @@ Only add reusable items that are cross-feature:
 - shared components
 
 Do not move feature-specific components into `core:ui`.
+
+## core:worker
+
+Expected files:
+
+```text
+core/worker/
+  build.gradle.kts
+  src/main/java/<base-package>/core/worker/
+    SyncWorker.kt
+    SyncScheduler.kt
+    WorkManagerSyncScheduler.kt
+    di/
+      WorkerSchedulerModule.kt
+```
+
+Rules:
+- workers should not depend on `feature/*`
+- workers should inject repository or coordinator services from `core:data`
+- app-level WorkManager setup belongs in `app/App.kt`
+- use `@HiltWorker` + `@AssistedInject` for workers
+
+Pattern:
+
+```kotlin
+@HiltWorker
+class SyncWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+    private val authRepository: AuthRepository,
+) : CoroutineWorker(appContext, params) {
+
+    override suspend fun doWork(): Result {
+        val token = authRepository.getToken() ?: return Result.retry()
+        return Result.success()
+    }
+}
+```

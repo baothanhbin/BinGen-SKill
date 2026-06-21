@@ -42,9 +42,86 @@ def feature_camel(name: str) -> str:
     return pascal[:1].lower() + pascal[1:] if pascal else name
 
 
+def navigation_signature(extra_signature: str) -> str:
+    extra_signature = extra_signature.rstrip()
+    if not extra_signature:
+        return ""
+    return indent(extra_signature, " " * 4).rstrip()
+
+
+def navigation_route_call(nav_call: str) -> str:
+    return indent(nav_call.rstrip(), " " * 8).rstrip()
+
+
+def feature_specific_viewmodel_logic(feature_name: str, pascal: str) -> str:
+    if feature_name == "login":
+        return dedent(
+            f"""
+            fun onLoginClick() {{
+                _uiState.update {{ state -> state.copy(isLoading = true) }}
+                viewModelScope.launch {{
+                    _events.emit({pascal}Event.NavigateToHome)
+                    _uiState.update {{ state -> state.copy(isLoading = false) }}
+                }}
+            }}
+            """
+        ).strip()
+
+    if feature_name == "home":
+        return dedent(
+            f"""
+            fun onNavigateToLoginClick() {{
+                viewModelScope.launch {{
+                    _events.emit({pascal}Event.NavigateToLogin)
+                }}
+            }}
+            """
+        ).strip()
+
+    return dedent(
+        """
+        fun refreshTitle(newTitle: String) {
+            _uiState.update { state -> state.copy(title = newTitle) }
+        }
+        """
+    ).strip()
+
+
+def feature_specific_event(feature_name: str, pascal: str) -> str:
+    if feature_name == "login":
+        return dedent(
+            f"""
+            sealed interface {pascal}Event {{
+                data object NavigateToHome : {pascal}Event
+            }}
+            """
+        ).strip()
+
+    if feature_name == "home":
+        return dedent(
+            f"""
+            sealed interface {pascal}Event {{
+                data object NavigateToLogin : {pascal}Event
+            }}
+            """
+        ).strip()
+
+    return dedent(
+        f"""
+        sealed interface {pascal}Event
+        """
+    ).strip()
+
+
+def formatted_imports(*blocks: str) -> str:
+    imports = [line for block_text in blocks for line in dedent(block_text).strip().splitlines() if line.strip()]
+    return "\n".join(imports)
+
+
 def write_file(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content.rstrip() + "\n", encoding="utf-8")
+    normalized = content.lstrip("\n").rstrip()
+    path.write_text((normalized + "\n") if normalized else "", encoding="utf-8")
 
 
 def touch_text_file(path: Path, content: str = "") -> None:
@@ -66,7 +143,7 @@ def module_build_common(namespace: str, plugin_alias: str) -> str:
 
 
 def create_root_files(root: Path, project_name: str, slug: str, module_includes: list[str]) -> None:
-    includes = "\n".join(f'include("{item}")' for item in module_includes)
+    includes = indent("\n".join(f'include("{item}")' for item in module_includes), " " * 12)
     write_file(
         root / "settings.gradle.kts",
         dedent(
@@ -96,7 +173,7 @@ def create_root_files(root: Path, project_name: str, slug: str, module_includes:
 
             rootProject.name = "{project_name}"
             includeBuild("build-logic")
-            {includes}
+{includes}
             """
         ),
     )
@@ -145,6 +222,7 @@ def create_root_files(root: Path, project_name: str, slug: str, module_includes:
             hilt = "2.52"
             navigationCompose = "2.9.4"
             lifecycleRuntimeKtx = "2.9.4"
+            lifecycleRuntimeCompose = "2.9.4"
             hiltNavigationCompose = "1.3.0"
             activityCompose = "1.10.0"
             composeBom = "2025.09.01"
@@ -155,6 +233,7 @@ def create_root_files(root: Path, project_name: str, slug: str, module_includes:
             kotlinxSerialization = "1.7.3"
             ktorSerializationKotlinxJson = "2.3.12"
             datastore = "1.1.7"
+            work = "2.9.1"
             material3 = "1.4.0"
             material = "1.13.0"
             junit = "4.13.2"
@@ -167,6 +246,7 @@ def create_root_files(root: Path, project_name: str, slug: str, module_includes:
             [libraries]
             androidx-core-ktx = {{ group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }}
             androidx-lifecycle-runtime-ktx = {{ group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }}
+            androidx-lifecycle-runtime-compose = {{ group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }}
             androidx-activity-compose = {{ group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }}
             androidx-compose-bom = {{ group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }}
             androidx-ui = {{ group = "androidx.compose.ui", name = "ui" }}
@@ -179,14 +259,16 @@ def create_root_files(root: Path, project_name: str, slug: str, module_includes:
             androidx-appcompat = {{ group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }}
             material = {{ group = "com.google.android.material", name = "material", version.ref = "material" }}
             hilt-android = {{ group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }}
-            dagger-hilt-complier = {{ group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }}
+            dagger-hilt-compiler = {{ group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }}
             androidx-hilt-navigation-compose = {{ group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }}
-            androidx-hilt-complier = {{ group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltNavigationCompose" }}
+            androidx-hilt-work = {{ group = "androidx.hilt", name = "hilt-work", version.ref = "hiltNavigationCompose" }}
+            androidx-hilt-compiler = {{ group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltNavigationCompose" }}
             androidx-navigation-compose = {{ module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }}
             androidx-room-compiler = {{ module = "androidx.room:room-compiler", version.ref = "room" }}
             androidx-room-ktx = {{ module = "androidx.room:room-ktx", version.ref = "room" }}
             androidx-room-runtime = {{ module = "androidx.room:room-runtime", version.ref = "room" }}
             androidx-datastore = {{ group = "androidx.datastore", name = "datastore", version.ref = "datastore" }}
+            androidx-work-runtime-ktx = {{ group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }}
             protobuf-kotlin-lite = {{ group = "com.google.protobuf", name = "protobuf-kotlin-lite", version.ref = "protobuf" }}
             protobuf-protoc = {{ group = "com.google.protobuf", name = "protoc", version.ref = "protobuf" }}
             kotlinx-serialization-json = {{ group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }}
@@ -194,7 +276,7 @@ def create_root_files(root: Path, project_name: str, slug: str, module_includes:
             junit = {{ group = "junit", name = "junit", version.ref = "junit" }}
             androidx-junit = {{ group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }}
             androidx-espresso-core = {{ group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }}
-            android-gradlePlugin = {{ group = "com.android.tools.build", name = "gradle", version = "8.12.3" }}
+            android-gradlePlugin = {{ group = "com.android.tools.build", name = "gradle", version.ref = "agp" }}
             ksp-gradlePlugin = {{ group = "com.google.devtools.ksp", name = "com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }}
             room-gradlePlugin = {{ group = "androidx.room", name = "room-gradle-plugin", version.ref = "room" }}
             kotlin-gradlePlugin = {{ group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }}
@@ -382,8 +464,13 @@ def create_build_logic_classes(root: Path, slug: str) -> None:
                         }}
 
                         dependencies {{
+                            add("implementation", platform(libs.findLibrary("androidx-compose-bom").get()))
                             add("implementation", project(":resources"))
                             add("implementation", project(":core:model"))
+                            add("implementation", libs.findLibrary("androidx-ui").get())
+                            add("implementation", libs.findLibrary("androidx-material3").get())
+                            add("implementation", libs.findLibrary("androidx-lifecycle-runtime-compose").get())
+                            add("implementation", libs.findLibrary("androidx-hilt-navigation-compose").get())
                             add("implementation", libs.findLibrary("androidx-navigation-compose").get())
                         }}
                     }}
@@ -465,8 +552,8 @@ def create_build_logic_classes(root: Path, slug: str) -> None:
                         dependencies {
                             add("implementation", libs.findLibrary("hilt-android").get())
                             add("implementation", libs.findLibrary("androidx-hilt-navigation-compose").get())
-                            add("ksp", libs.findLibrary("dagger-hilt-complier").get())
-                            add("ksp", libs.findLibrary("androidx-hilt-complier").get())
+                            add("ksp", libs.findLibrary("dagger-hilt-compiler").get())
+                            add("ksp", libs.findLibrary("androidx-hilt-compiler").get())
                         }
                     }
                 }
@@ -525,7 +612,6 @@ def create_build_logic_classes(root: Path, slug: str) -> None:
             ) {
                 commonExtension.apply {
                     buildFeatures.compose = true
-                    composeOptions.kotlinCompilerExtensionVersion = "1.5.15"
                     defaultConfig {
                         vectorDrawables.useSupportLibrary = true
                     }
@@ -656,40 +742,37 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
     )
     network_build = root / "core" / "network" / "build.gradle.kts"
     network_build.write_text(
-        network_build.read_text(encoding="utf-8").replace(
-            f'plugins {{\n    alias({plugin_ref(f"{slug}-module")})\n    alias({plugin_ref(f"{slug}-hilt")})\n}}\n\nandroid {{\n    namespace = "{base_package}.core.network"\n}}\n',
-            dedent(
-                f"""
-                plugins {{
-                    alias({plugin_ref(f"{slug}-module")})
-                    alias({plugin_ref(f"{slug}-hilt")})
+        dedent(
+            f"""
+            plugins {{
+                alias({plugin_ref(f"{slug}-module")})
+                alias({plugin_ref(f"{slug}-hilt")})
+            }}
+
+            android {{
+                namespace = "{base_package}.core.network"
+
+                buildFeatures {{
+                    buildConfig = true
                 }}
 
-                android {{
-                    namespace = "{base_package}.core.network"
-
-                    buildFeatures {{
-                        buildConfig = true
-                    }}
-
-                    defaultConfig {{
-                        val apiBaseUrl = (findProperty("api.baseUrl") as String?)
-                            ?: System.getenv("API_BASE_URL")
-                            ?: "https://api.example.com"
-                        buildConfigField("String", "API_BASE_URL", "\\"${{apiBaseUrl.trimEnd('/')}}\\"")
-                    }}
+                defaultConfig {{
+                    val apiBaseUrl = (findProperty("api.baseUrl") as String?)
+                        ?: System.getenv("API_BASE_URL")
+                        ?: "https://api.example.com"
+                    buildConfigField("String", "API_BASE_URL", "\\"${{apiBaseUrl.trimEnd('/')}}\\"")
                 }}
+            }}
 
-                dependencies {{
-                    implementation(projects.core.model)
-                    implementation(libs.ktor.serialization.kotlinx.json)
-                    implementation("io.ktor:ktor-client-core:2.3.12")
-                    implementation("io.ktor:ktor-client-android:2.3.12")
-                    implementation("io.ktor:ktor-client-okhttp:2.3.12")
-                    implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
-                }}
-                """
-            ),
+            dependencies {{
+                implementation(projects.core.model)
+                implementation(libs.ktor.serialization.kotlinx.json)
+                implementation("io.ktor:ktor-client-core:2.3.12")
+                implementation("io.ktor:ktor-client-android:2.3.12")
+                implementation("io.ktor:ktor-client-okhttp:2.3.12")
+                implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
+            }}
+            """
         ),
         encoding="utf-8",
     )
@@ -878,7 +961,7 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
     )
     db_package = root / "core" / "database" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.database")
     write_file(
-        db_package / "AgriDoctorDatabase.kt",
+        db_package / "AppDatabase.kt",
         dedent(
             f"""
             package {base_package}.core.database
@@ -943,6 +1026,7 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             import android.content.Context
             import androidx.room.Room
             import {base_package}.core.database.AppDatabase
+            import {base_package}.core.database.dao.PlaceholderDao
             import dagger.Module
             import dagger.Provides
             import dagger.hilt.InstallIn
@@ -964,6 +1048,11 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                         "app_database"
                     ).build()
                 }}
+
+                @Provides
+                fun providePlaceholderDao(
+                    database: AppDatabase
+                ): PlaceholderDao = database.placeholderDao()
             }}
             """
         ),
@@ -975,7 +1064,8 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
         dedent(
             f"""
             plugins {{
-                alias({plugin_ref(f"{slug}-compose-module")})
+                alias({plugin_ref(f"{slug}-module")})
+                alias({plugin_ref(f"{slug}-hilt")})
                 alias(libs.plugins.google.protobuf)
             }}
 
@@ -1098,6 +1188,139 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
         ),
     )
 
+    worker_path = root / "core" / "worker"
+    write_file(
+        worker_path / "build.gradle.kts",
+        dedent(
+            f"""
+            plugins {{
+                alias({plugin_ref(f"{slug}-module")})
+                alias({plugin_ref(f"{slug}-hilt")})
+            }}
+
+            android {{
+                namespace = "{base_package}.core.worker"
+            }}
+
+            dependencies {{
+                implementation(projects.core.data)
+                implementation(libs.androidx.work.runtime.ktx)
+                implementation(libs.androidx.hilt.work)
+            }}
+            """
+        ),
+    )
+    touch_text_file(worker_path / "consumer-rules.pro")
+    touch_text_file(worker_path / "proguard-rules.pro")
+    write_file(worker_path / "src" / "main" / "AndroidManifest.xml", "<manifest />")
+    worker_package = worker_path / "src" / "main" / "java" / package_to_path(f"{base_package}.core.worker")
+    write_file(
+        worker_package / "SyncWorker.kt",
+        dedent(
+            f"""
+            package {base_package}.core.worker
+
+            import android.content.Context
+            import androidx.hilt.work.HiltWorker
+            import androidx.work.CoroutineWorker
+            import androidx.work.WorkerParameters
+            import {base_package}.core.data.repository.AuthRepository
+            import dagger.assisted.Assisted
+            import dagger.assisted.AssistedInject
+
+            @HiltWorker
+            class SyncWorker @AssistedInject constructor(
+                @Assisted appContext: Context,
+                @Assisted params: WorkerParameters,
+                private val authRepository: AuthRepository,
+            ) : CoroutineWorker(appContext, params) {{
+
+                override suspend fun doWork(): Result {{
+                    val token = authRepository.getToken() ?: return Result.retry()
+                    return runCatching {{
+                        check(token.isNotBlank())
+                    }}.fold(
+                        onSuccess = {{ Result.success() }},
+                        onFailure = {{ Result.retry() }},
+                    )
+                }}
+            }}
+            """
+        ),
+    )
+    write_file(
+        worker_package / "SyncScheduler.kt",
+        dedent(
+            f"""
+            package {base_package}.core.worker
+
+            interface SyncScheduler {{
+                fun enqueueSync()
+            }}
+            """
+        ),
+    )
+    write_file(
+        worker_package / "WorkManagerSyncScheduler.kt",
+        dedent(
+            f"""
+            package {base_package}.core.worker
+
+            import android.content.Context
+            import androidx.work.ExistingWorkPolicy
+            import androidx.work.OneTimeWorkRequestBuilder
+            import androidx.work.WorkManager
+            import dagger.hilt.android.qualifiers.ApplicationContext
+            import javax.inject.Inject
+
+            class WorkManagerSyncScheduler @Inject constructor(
+                @ApplicationContext private val context: Context,
+            ) : SyncScheduler {{
+
+                override fun enqueueSync() {{
+                    val request = OneTimeWorkRequestBuilder<SyncWorker>().build()
+                    WorkManager.getInstance(context).enqueueUniqueWork(
+                        SYNC_WORK_NAME,
+                        ExistingWorkPolicy.KEEP,
+                        request,
+                    )
+                }}
+
+                private companion object {{
+                    const val SYNC_WORK_NAME = "startup-sync"
+                }}
+            }}
+            """
+        ),
+    )
+    write_file(
+        worker_package / "di" / "WorkerSchedulerModule.kt",
+        dedent(
+            f"""
+            package {base_package}.core.worker.di
+
+            import {base_package}.core.worker.SyncScheduler
+            import {base_package}.core.worker.WorkManagerSyncScheduler
+            import dagger.Binds
+            import dagger.Module
+            import dagger.hilt.InstallIn
+            import dagger.hilt.components.SingletonComponent
+            import javax.inject.Singleton
+
+            @Module
+            @InstallIn(SingletonComponent::class)
+            abstract class WorkerSchedulerModule {{
+
+                @Binds
+                @Singleton
+                abstract fun bindSyncScheduler(
+                    impl: WorkManagerSyncScheduler,
+                ): SyncScheduler
+            }}
+            """
+        ),
+    )
+
 
 def create_app_module(root: Path, project_name: str, base_package: str, slug: str, features: list[str]) -> None:
     app_path = root / "app"
@@ -1105,16 +1328,22 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
     has_login = "login" in features
     signed_in_destination = "HOME_ROUTE" if has_home else ("LOGIN_ROUTE" if has_login else '"main"')
     signed_out_destination = "LOGIN_ROUTE" if has_login else ("HOME_ROUTE" if has_home else '"main"')
-    feature_dependencies = []
+    feature_dependencies = [
+        "implementation(projects.core.worker)",
+        "implementation(libs.androidx.lifecycle.runtime.compose)",
+        "implementation(libs.androidx.work.runtime.ktx)",
+        "implementation(libs.androidx.hilt.work)",
+    ]
     if has_home:
-        feature_dependencies.append("    implementation(projects.feature.home)")
+        feature_dependencies.append("implementation(projects.feature.home)")
     if has_login:
-        feature_dependencies.append("    implementation(projects.feature.login)")
-    feature_dependency_block = "\n".join(feature_dependencies)
+        feature_dependencies.append("implementation(projects.feature.login)")
     home_imports = ""
+    home_route_import = ""
     login_imports = ""
     nav_graph_entries = ""
     if has_home:
+        home_route_import = f"import {base_package}.feature.home.navigation.HOME_ROUTE"
         home_imports = dedent(
             f"""
             import {base_package}.feature.home.navigation.HOME_ROUTE
@@ -1130,6 +1359,8 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             import {base_package}.feature.login.navigation.navigateToLogin
             """
         ).strip()
+    top_level_imports = indent(formatted_imports(home_route_import), " " * 12) if has_home else ""
+    nav_imports = indent(formatted_imports(home_imports if has_home else "", login_imports if has_login else ""), " " * 12)
     if has_login and has_home:
         nav_graph_entries = "\n".join(
             [
@@ -1169,52 +1400,48 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             """,
             spaces=20,
         )
-    write_file(
-        app_path / "build.gradle.kts",
-        dedent(
-            f"""
-            plugins {{
-                alias({plugin_ref(f"{slug}-compose-application")})
-                alias(libs.plugins.jetbrains.kotlin.android)
-                alias({plugin_ref(f"{slug}-hilt")})
-            }}
-
-            android {{
-                namespace = "{base_package}"
-                compileSdk = 36
-
-                defaultConfig {{
-                    applicationId = "{base_package}"
-                    minSdk = 27
-                    targetSdk = 36
-                    versionCode = 1
-                    versionName = "1.0"
-                    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-                }}
-
-                buildFeatures {{
-                    compose = true
-                }}
-            }}
-
-            dependencies {{
-                implementation(platform(libs.androidx.compose.bom))
-                implementation(libs.androidx.ui)
-                implementation(libs.androidx.ui.graphics)
-                implementation(libs.androidx.ui.tooling.preview)
-                implementation(libs.androidx.material3)
-                implementation(libs.androidx.activity.compose)
-                implementation(libs.androidx.lifecycle.runtime.ktx)
-                implementation(projects.core.model)
-                implementation(projects.core.data)
-                implementation(projects.resources)
-                implementation(projects.core.ui)
-                implementation(projects.core.theme)
-            {feature_dependency_block}
-            }}
-            """
-        ),
-    )
+    app_gradle_lines = [
+        "plugins {",
+        f"    alias({plugin_ref(f'{slug}-compose-application')})",
+        "    alias(libs.plugins.jetbrains.kotlin.android)",
+        f"    alias({plugin_ref(f'{slug}-hilt')})",
+        "}",
+        "",
+        "android {",
+        f'    namespace = "{base_package}"',
+        "    compileSdk = 36",
+        "",
+        "    defaultConfig {",
+        f'        applicationId = "{base_package}"',
+        "        minSdk = 27",
+        "        targetSdk = 36",
+        "        versionCode = 1",
+        '        versionName = "1.0"',
+        '        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"',
+        "    }",
+        "",
+        "    buildFeatures {",
+        "        compose = true",
+        "    }",
+        "}",
+        "",
+        "dependencies {",
+        "    implementation(platform(libs.androidx.compose.bom))",
+        "    implementation(libs.androidx.ui)",
+        "    implementation(libs.androidx.ui.graphics)",
+        "    implementation(libs.androidx.ui.tooling.preview)",
+        "    implementation(libs.androidx.material3)",
+        "    implementation(libs.androidx.activity.compose)",
+        "    implementation(libs.androidx.lifecycle.runtime.ktx)",
+        "    implementation(projects.core.model)",
+        "    implementation(projects.core.data)",
+        "    implementation(projects.resources)",
+        "    implementation(projects.core.ui)",
+        "    implementation(projects.core.theme)",
+    ]
+    app_gradle_lines.extend(f"    {line}" for line in feature_dependencies)
+    app_gradle_lines.append("}")
+    write_file(app_path / "build.gradle.kts", "\n".join(app_gradle_lines))
     touch_text_file(app_path / "proguard-rules.pro")
     app_package = app_path / "src" / "main" / "java" / package_to_path(base_package)
     write_file(
@@ -1251,10 +1478,22 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             package {base_package}
 
             import android.app.Application
+            import androidx.hilt.work.HiltWorkerFactory
+            import androidx.work.Configuration
             import dagger.hilt.android.HiltAndroidApp
+            import javax.inject.Inject
 
             @HiltAndroidApp
-            class App : Application()
+            class App : Application(), Configuration.Provider {{
+
+                @Inject
+                lateinit var workerFactory: HiltWorkerFactory
+
+                override val workManagerConfiguration: Configuration
+                    get() = Configuration.Builder()
+                        .setWorkerFactory(workerFactory)
+                        .build()
+            }}
             """
         ),
     )
@@ -1325,7 +1564,7 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
                             MainApp(
                                 modifier = Modifier.fillMaxSize(),
                                 appState = appState,
-                                startDestination = if (isLoggedIn) {signed_in_destination} else {signed_out_destination}
+                                startDestination = if (isLoggedIn) {signed_in_destination} else {signed_out_destination},
                             )
                         }}
                     }}
@@ -1341,10 +1580,10 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             f"""
             package {base_package}.navigation
 
-            {home_imports if has_home else ''}
+{top_level_imports}
 
             enum class TopLevelDestination(
-                val route: String
+                val route: String,
             ) {{
                 {f'HOME(route = HOME_ROUTE)' if has_home else 'MAIN(route = "main")'}
             }}
@@ -1365,7 +1604,7 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
 
             class AppState(
                 val navController: NavHostController,
-                val locationStateHolder: LocationStateHolder
+                val locationStateHolder: LocationStateHolder,
             )
 
             @Composable
@@ -1388,19 +1627,18 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             import androidx.compose.runtime.Composable
             import androidx.compose.ui.Modifier
             import androidx.navigation.compose.NavHost
-            {home_imports if has_home else ""}
-            {login_imports if has_login else ""}
+{nav_imports}
 
             @Composable
             fun MainNavHost(
-                modifier: Modifier = Modifier,
                 appState: AppState,
-                startDestination: String = {signed_out_destination}
+                startDestination: String = {signed_out_destination},
+                modifier: Modifier = Modifier,
             ) {{
                 NavHost(
-                    modifier = modifier,
                     navController = appState.navController,
-                    startDestination = startDestination
+                    startDestination = startDestination,
+                    modifier = modifier,
                 ) {{
 {nav_graph_entries}
                 }}
@@ -1422,14 +1660,14 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
 
             @Composable
             fun MainApp(
-                modifier: Modifier = Modifier,
                 appState: AppState,
-                startDestination: String
+                startDestination: String,
+                modifier: Modifier = Modifier,
             ) {{
                 MainNavHost(
-                    modifier = modifier,
                     appState = appState,
-                    startDestination = startDestination
+                    startDestination = startDestination,
+                    modifier = modifier,
                 )
             }}
             """
@@ -1533,29 +1771,38 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             import androidx.compose.ui.Modifier
             import androidx.hilt.navigation.compose.hiltViewModel
             import androidx.lifecycle.compose.collectAsStateWithLifecycle
+            import androidx.compose.runtime.LaunchedEffect
 
             @Composable
             fun {pascal}Route(
                 onNavigateToHome: () -> Unit,
-                viewModel: {pascal}ViewModel = hiltViewModel()
+                viewModel: {pascal}ViewModel = hiltViewModel(),
             ) {{
                 val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 
+                LaunchedEffect(viewModel) {{
+                    viewModel.events.collect {{ event ->
+                        when (event) {{
+                            {pascal}Event.NavigateToHome -> onNavigateToHome()
+                        }}
+                    }}
+                }}
+
                 {pascal}Screen(
                     isLoading = uiState.isLoading,
-                    onLoginClick = onNavigateToHome
+                    onLoginClick = viewModel::onLoginClick,
                 )
             }}
 
             @Composable
             fun {pascal}Screen(
                 isLoading: Boolean,
-                onLoginClick: () -> Unit
+                onLoginClick: () -> Unit,
             ) {{
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {{
                     Text("Login")
                     Button(onClick = onLoginClick, enabled = !isLoading) {{
@@ -1565,8 +1812,14 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             }}
             """
         )
-        nav_extra_signature = "    onNavigateToHome: () -> Unit\n"
-        nav_call = f"        {pascal}Route(onNavigateToHome = onNavigateToHome)\n"
+        nav_extra_signature = "onNavigateToHome: () -> Unit,"
+        nav_call = dedent(
+            f"""
+            {pascal}Route(
+                onNavigateToHome = onNavigateToHome,
+            )
+            """
+        ).strip()
     elif feature_name == "home":
         screen_content = dedent(
             f"""
@@ -1582,30 +1835,39 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             import androidx.compose.ui.Modifier
             import androidx.hilt.navigation.compose.hiltViewModel
             import androidx.lifecycle.compose.collectAsStateWithLifecycle
+            import androidx.compose.runtime.LaunchedEffect
             import {namespace}.component.{pascal}Content
 
             @Composable
             fun {pascal}Route(
                 onNavigateToLogin: () -> Unit,
-                viewModel: {pascal}ViewModel = hiltViewModel()
+                viewModel: {pascal}ViewModel = hiltViewModel(),
             ) {{
                 val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 
+                LaunchedEffect(viewModel) {{
+                    viewModel.events.collect {{ event ->
+                        when (event) {{
+                            {pascal}Event.NavigateToLogin -> onNavigateToLogin()
+                        }}
+                    }}
+                }}
+
                 {pascal}Screen(
                     title = uiState.title,
-                    onNavigateToLogin = onNavigateToLogin
+                    onNavigateToLogin = viewModel::onNavigateToLoginClick,
                 )
             }}
 
             @Composable
             fun {pascal}Screen(
                 title: String,
-                onNavigateToLogin: () -> Unit
+                onNavigateToLogin: () -> Unit,
             ) {{
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {{
                     {pascal}Content(title = title)
                     Button(onClick = onNavigateToLogin) {{
@@ -1615,8 +1877,14 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             }}
             """
         )
-        nav_extra_signature = "    onNavigateToLogin: () -> Unit\n"
-        nav_call = f"        {pascal}Route(onNavigateToLogin = onNavigateToLogin)\n"
+        nav_extra_signature = "onNavigateToLogin: () -> Unit,"
+        nav_call = dedent(
+            f"""
+            {pascal}Route(
+                onNavigateToLogin = onNavigateToLogin,
+            )
+            """
+        ).strip()
     else:
         screen_content = dedent(
             f"""
@@ -1635,23 +1903,23 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
 
             @Composable
             fun {pascal}Route(
-                viewModel: {pascal}ViewModel = hiltViewModel()
+                viewModel: {pascal}ViewModel = hiltViewModel(),
             ) {{
                 val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
 
                 {pascal}Screen(
-                    title = uiState.title
+                    title = uiState.title,
                 )
             }}
 
             @Composable
             fun {pascal}Screen(
-                title: String
+                title: String,
             ) {{
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {{
                     {pascal}Content(title = title)
                 }}
@@ -1659,9 +1927,11 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             """
         )
         nav_extra_signature = ""
-        nav_call = f"        {pascal}Route()\n"
+        nav_call = f"{pascal}Route()"
 
     write_file(feature_package / f"{pascal}Screen.kt", screen_content)
+    viewmodel_logic = indent(feature_specific_viewmodel_logic(feature_name, pascal), " " * 16)
+    event_block = indent(feature_specific_event(feature_name, pascal), " " * 12)
     write_file(
         feature_package / f"{pascal}ViewModel.kt",
         dedent(
@@ -1671,20 +1941,33 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             import androidx.lifecycle.ViewModel
             import dagger.hilt.android.lifecycle.HiltViewModel
             import javax.inject.Inject
+            import androidx.lifecycle.viewModelScope
             import kotlinx.coroutines.flow.MutableStateFlow
+            import kotlinx.coroutines.flow.MutableSharedFlow
+            import kotlinx.coroutines.flow.SharedFlow
             import kotlinx.coroutines.flow.StateFlow
             import kotlinx.coroutines.flow.asStateFlow
+            import kotlinx.coroutines.flow.asSharedFlow
+            import kotlinx.coroutines.flow.update
+            import kotlinx.coroutines.launch
 
             data class {pascal}UiState(
                 val title: String = "{pascal}",
-                val isLoading: Boolean = false
+                val isLoading: Boolean = false,
             )
 
             @HiltViewModel
             class {pascal}ViewModel @Inject constructor() : ViewModel() {{
                 private val _uiState = MutableStateFlow({pascal}UiState())
                 val uiState: StateFlow<{pascal}UiState> = _uiState.asStateFlow()
+
+                private val _events = MutableSharedFlow<{pascal}Event>()
+                val events: SharedFlow<{pascal}Event> = _events.asSharedFlow()
+
+{viewmodel_logic}
             }}
+
+{event_block}
             """
         ),
     )
@@ -1704,31 +1987,34 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             """
         ),
     )
+    signature_block = navigation_signature(nav_extra_signature)
+    route_call_block = navigation_route_call(nav_call)
     write_file(
         feature_package / "navigation" / f"{pascal}Navigation.kt",
-        dedent(
-            f"""
-            package {namespace}.navigation
-
-            import androidx.navigation.NavController
-            import androidx.navigation.NavGraphBuilder
-            import androidx.navigation.NavOptions
-            import androidx.navigation.compose.composable
-            import {namespace}.{pascal}Route
-
-            const val {route_constant} = "{route_name}"
-
-            fun NavController.navigateTo{pascal}(navOptions: NavOptions? = null) {{
-                navigate({route_constant}, navOptions)
-            }}
-
-            fun NavGraphBuilder.{camel}Screen(
-            {nav_extra_signature}) {{
-                composable(route = {route_constant}) {{
-            {nav_call.rstrip()}
-                }}
-            }}
-            """
+        "\n".join(
+            [
+                f"package {namespace}.navigation",
+                "",
+                "import androidx.navigation.NavController",
+                "import androidx.navigation.NavGraphBuilder",
+                "import androidx.navigation.NavOptions",
+                "import androidx.navigation.compose.composable",
+                f"import {namespace}.{pascal}Route",
+                "",
+                f'const val {route_constant} = "{route_name}"',
+                "",
+                f"fun NavController.navigateTo{pascal}(navOptions: NavOptions? = null) {{",
+                f"    navigate({route_constant}, navOptions)",
+                "}",
+                "",
+                f"fun NavGraphBuilder.{camel}Screen(",
+                signature_block if signature_block else "",
+                ") {",
+                f"    composable(route = {route_constant}) {{",
+                route_call_block,
+                "    }",
+                "}",
+            ]
         ),
     )
 
@@ -1763,6 +2049,7 @@ def main() -> None:
         ":core:database",
         ":core:datastore",
         ":core:alarm",
+        ":core:worker",
     ]
     feature_modules = [f":feature:{name}" for name in features]
 
