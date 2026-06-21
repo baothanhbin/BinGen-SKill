@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill gen app compose multi module"
+  short_description: "Scaffold Compose Android multi-module app"
+  default_prompt: "Use $skill-gen-app-compose-multi-module to scaffold a new Android project with a Compose multi-module architecture."
