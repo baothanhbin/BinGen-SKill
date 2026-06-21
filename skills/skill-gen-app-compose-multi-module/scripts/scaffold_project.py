@@ -17,6 +17,18 @@ def package_to_path(package_name: str) -> Path:
     return Path(*package_name.split("."))
 
 
+def catalog_accessor(alias: str) -> str:
+    return alias.replace("-", ".")
+
+
+def plugin_ref(alias: str) -> str:
+    return f"libs.plugins.{catalog_accessor(alias)}"
+
+
+def library_ref(alias: str) -> str:
+    return f"libs.{catalog_accessor(alias)}"
+
+
 def feature_pascal(name: str) -> str:
     return "".join(part.capitalize() for part in re.split(r"[^a-zA-Z0-9]+", name) if part)
 
@@ -39,7 +51,7 @@ def module_build_common(namespace: str, plugin_alias: str) -> str:
     return dedent(
         f"""
         plugins {{
-            alias(libs.plugins.{plugin_alias})
+            alias({plugin_ref(plugin_alias)})
         }}
 
         android {{
@@ -552,15 +564,15 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
 
     create_module_common(root, "core/model", f"{base_package}.core.model", f"{slug}-module")
     write_file(
-        root / "core" / "model" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.model") / "ApiType.kt",
+        root / "core" / "model" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.model") / "UserSession.kt",
         dedent(
             f"""
             package {base_package}.core.model
 
-            enum class ApiType {{
-                DETECT,
-                CLASSIFY
-            }}
+            data class UserSession(
+                val userId: String = "",
+                val accessToken: String = "",
+            )
             """
         ),
     )
@@ -636,20 +648,19 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
         root,
         "core/network",
         f"{base_package}.core.network",
-        f"{slug}-compose-module",
-        '    implementation(projects.core.model)\n'
-        '    implementation(libs.ktor.serialization.kotlinx.json)\n'
-        '    implementation("io.ktor:ktor-client-core:2.3.12")\n'
-        '    implementation("io.ktor:ktor-client-android:2.3.12")\n'
-        '    implementation("io.ktor:ktor-client-okhttp:2.3.12")\n'
-        '    implementation("io.ktor:ktor-client-content-negotiation:2.3.12")',
+        f"{slug}-module",
     )
     network_build = root / "core" / "network" / "build.gradle.kts"
     network_build.write_text(
         network_build.read_text(encoding="utf-8").replace(
-            f'android {{\n    namespace = "{base_package}.core.network"\n}}\n',
+            f'plugins {{\n    alias({plugin_ref(f"{slug}-module")})\n    alias({plugin_ref(f"{slug}-hilt")})\n}}\n\nandroid {{\n    namespace = "{base_package}.core.network"\n}}\n',
             dedent(
                 f"""
+                plugins {{
+                    alias({plugin_ref(f"{slug}-module")})
+                    alias({plugin_ref(f"{slug}-hilt")})
+                }}
+
                 android {{
                     namespace = "{base_package}.core.network"
 
@@ -664,6 +675,15 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                         buildConfigField("String", "API_BASE_URL", "\\"${{apiBaseUrl.trimEnd('/')}}\\"")
                     }}
                 }}
+
+                dependencies {{
+                    implementation(projects.core.model)
+                    implementation(libs.ktor.serialization.kotlinx.json)
+                    implementation("io.ktor:ktor-client-core:2.3.12")
+                    implementation("io.ktor:ktor-client-android:2.3.12")
+                    implementation("io.ktor:ktor-client-okhttp:2.3.12")
+                    implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
+                }}
                 """
             ),
         ),
@@ -671,33 +691,42 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
     )
     network_package = root / "core" / "network" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.network")
     write_file(
-        network_package / "NetworkClients.kt",
+        network_package / "NetworkModule.kt",
         dedent(
             f"""
             package {base_package}.core.network
 
+            import dagger.Module
+            import dagger.Provides
+            import dagger.hilt.InstallIn
+            import dagger.hilt.components.SingletonComponent
             import io.ktor.client.HttpClient
             import io.ktor.client.engine.okhttp.OkHttp
             import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
             import io.ktor.client.plugins.defaultRequest
             import io.ktor.serialization.kotlinx.json.json
+            import javax.inject.Named
+            import javax.inject.Singleton
             import kotlinx.serialization.json.Json
 
-            object NetworkClients {{
+            @Module
+            @InstallIn(SingletonComponent::class)
+            object NetworkModule {{
                 private const val API_BASE_URL = BuildConfig.API_BASE_URL
 
-                private fun createClient(baseUrl: String): HttpClient {{
+                @Provides
+                @Singleton
+                @Named("auth")
+                fun provideAuthHttpClient(): HttpClient {{
                     return HttpClient(OkHttp) {{
                         defaultRequest {{
-                            url(baseUrl)
+                            url("$API_BASE_URL/api/auth/")
                         }}
                         install(ContentNegotiation) {{
                             json(Json {{ ignoreUnknownKeys = true }})
                         }}
                     }}
                 }}
-
-                val authClient = createClient("$API_BASE_URL/api/auth/")
             }}
             """
         ),
@@ -708,7 +737,13 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             f"""
             package {base_package}.core.network
 
-            object NetworkDataSource
+            import io.ktor.client.HttpClient
+            import javax.inject.Inject
+            import javax.inject.Named
+
+            class NetworkDataSource @Inject constructor(
+                @Named("auth") private val authClient: HttpClient,
+            )
             """
         ),
     )
@@ -717,21 +752,15 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
         root,
         "core/data",
         f"{base_package}.core.data",
-        f"{slug}-compose-module",
-        '    implementation(projects.core.network)\n'
-        '    implementation(projects.core.datastore)\n'
-        '    implementation(projects.core.database)\n'
-        '    implementation(projects.core.model)\n'
-        f'    implementation(projects.core.theme)\n'
-        f'    alias(libs.plugins.{slug}-hilt) apply false',
+        f"{slug}-module",
     )
     data_build = root / "core" / "data" / "build.gradle.kts"
     data_build.write_text(
         dedent(
             f"""
             plugins {{
-                alias(libs.plugins.{slug}-compose-module)
-                alias(libs.plugins.{slug}-hilt)
+                alias({plugin_ref(f"{slug}-module")})
+                alias({plugin_ref(f"{slug}-hilt")})
             }}
 
             android {{
@@ -760,7 +789,6 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             interface AuthRepository {{
                 val isLoggedIn: Flow<Boolean>
                 suspend fun getToken(): String?
-                fun isUserLoggedIn(): Boolean
             }}
             """
         ),
@@ -776,7 +804,6 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             import javax.inject.Inject
             import javax.inject.Singleton
             import kotlinx.coroutines.flow.Flow
-            import kotlinx.coroutines.runBlocking
 
             @Singleton
             class AuthRepositoryImpl @Inject constructor(
@@ -785,10 +812,6 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                 override val isLoggedIn: Flow<Boolean> = authDataStore.isLoggedInFlow()
 
                 override suspend fun getToken(): String? = authDataStore.getToken()
-
-                override fun isUserLoggedIn(): Boolean {{
-                    return runBlocking {{ authDataStore.getToken() != null }}
-                }}
             }}
             """
         ),
@@ -799,15 +822,11 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             f"""
             package {base_package}.core.data.di
 
-            import android.content.Context
             import {base_package}.core.data.impl.AuthRepositoryImpl
             import {base_package}.core.data.repository.AuthRepository
-            import {base_package}.core.datastore.AuthDataStore
             import dagger.Binds
             import dagger.Module
-            import dagger.Provides
             import dagger.hilt.InstallIn
-            import dagger.hilt.android.qualifiers.ApplicationContext
             import dagger.hilt.components.SingletonComponent
             import javax.inject.Singleton
 
@@ -820,16 +839,6 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                     impl: AuthRepositoryImpl
                 ): AuthRepository
             }}
-
-            @Module
-            @InstallIn(SingletonComponent::class)
-            object AuthStoreModule {{
-                @Provides
-                @Singleton
-                fun provideAuthDataStore(
-                    @ApplicationContext context: Context
-                ): AuthDataStore = AuthDataStore(context)
-            }}
             """
         ),
     )
@@ -838,19 +847,16 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
         root,
         "core/database",
         f"{base_package}.core.database",
-        f"{slug}-compose-module",
-        f'    alias(libs.plugins.{slug}-room)\n'
-        '    implementation(libs.androidx-room-runtime)\n'
-        '    implementation(libs.androidx-room-ktx)\n'
-        '    ksp(libs.androidx-room-compiler)',
+        f"{slug}-module",
     )
     database_build = root / "core" / "database" / "build.gradle.kts"
     database_build.write_text(
         dedent(
             f"""
             plugins {{
-                alias(libs.plugins.{slug}-compose-module)
-                alias(libs.plugins.{slug}-room)
+                alias({plugin_ref(f"{slug}-module")})
+                alias({plugin_ref(f"{slug}-room")})
+                alias({plugin_ref(f"{slug}-hilt")})
             }}
 
             android {{
@@ -858,9 +864,9 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             }}
 
             dependencies {{
-                implementation(libs.androidx-room-runtime)
-                implementation(libs.androidx-room-ktx)
-                ksp(libs.androidx-room-compiler)
+                implementation(libs.androidx.room.runtime)
+                implementation(libs.androidx.room.ktx)
+                ksp(libs.androidx.room.compiler)
             }}
             """
         ),
@@ -883,7 +889,7 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                 version = 1,
                 exportSchema = false
             )
-            abstract class AgriDoctorDatabase : RoomDatabase() {{
+            abstract class AppDatabase : RoomDatabase() {{
                 abstract fun placeholderDao(): PlaceholderDao
             }}
             """
@@ -932,7 +938,7 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
 
             import android.content.Context
             import androidx.room.Room
-            import {base_package}.core.database.AgriDoctorDatabase
+            import {base_package}.core.database.AppDatabase
             import dagger.Module
             import dagger.Provides
             import dagger.hilt.InstallIn
@@ -947,10 +953,10 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                 @Singleton
                 fun provideDatabase(
                     @ApplicationContext context: Context
-                ): AgriDoctorDatabase {{
+                ): AppDatabase {{
                     return Room.databaseBuilder(
                         context,
-                        AgriDoctorDatabase::class.java,
+                        AppDatabase::class.java,
                         "app_database"
                     ).build()
                 }}
@@ -965,7 +971,7 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
         dedent(
             f"""
             plugins {{
-                alias(libs.plugins.{slug}-compose-module)
+                alias({plugin_ref(f"{slug}-compose-module")})
                 alias(libs.plugins.google.protobuf)
             }}
 
@@ -974,13 +980,13 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             }}
 
             dependencies {{
-                implementation(libs.androidx-datastore)
-                implementation(libs.protobuf-kotlin-lite)
+                implementation(libs.androidx.datastore)
+                implementation(libs.protobuf.kotlin.lite)
             }}
 
             protobuf {{
                 protoc {{
-                    artifact = libs.protobuf-protoc.get().toString()
+                    artifact = libs.protobuf.protoc.get().toString()
                 }}
                 generateProtoTasks {{
                     all().forEach {{ task ->
@@ -1026,15 +1032,19 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             import androidx.datastore.core.DataStore
             import androidx.datastore.core.Serializer
             import androidx.datastore.dataStore
+            import dagger.hilt.android.qualifiers.ApplicationContext
             import java.io.IOException
             import java.io.InputStream
             import java.io.OutputStream
+            import javax.inject.Inject
             import kotlinx.coroutines.flow.Flow
             import kotlinx.coroutines.flow.catch
             import kotlinx.coroutines.flow.first
             import kotlinx.coroutines.flow.map
 
-            class AuthDataStore(context: Context) {{
+            class AuthDataStore @Inject constructor(
+                @ApplicationContext context: Context,
+            ) {{
                 private val appContext = context.applicationContext
                 private val authDataStore: DataStore<AuthProto> = appContext.authDataStore
 
@@ -1071,7 +1081,7 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
         ),
     )
 
-    create_module_common(root, "core/alarm", f"{base_package}.core.alarm", f"{slug}-compose-module")
+    create_module_common(root, "core/alarm", f"{base_package}.core.alarm", f"{slug}-module")
     alarm_package = root / "core" / "alarm" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.alarm")
     write_file(
         alarm_package / "ReminderAlarmScheduler.kt",
@@ -1085,16 +1095,26 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
     )
 
 
-def create_app_module(root: Path, project_name: str, base_package: str, slug: str) -> None:
+def create_app_module(root: Path, project_name: str, base_package: str, slug: str, features: list[str]) -> None:
     app_path = root / "app"
+    has_home = "home" in features
+    has_login = "login" in features
+    signed_in_destination = "HOME_ROUTE" if has_home else ("LOGIN_ROUTE" if has_login else '"main"')
+    signed_out_destination = "LOGIN_ROUTE" if has_login else ("HOME_ROUTE" if has_home else '"main"')
+    feature_dependencies = []
+    if has_home:
+        feature_dependencies.append("    implementation(projects.feature.home)")
+    if has_login:
+        feature_dependencies.append("    implementation(projects.feature.login)")
+    feature_dependency_block = "\n".join(feature_dependencies)
     write_file(
         app_path / "build.gradle.kts",
         dedent(
             f"""
             plugins {{
-                alias(libs.plugins.{slug}-compose-application)
+                alias({plugin_ref(f"{slug}-compose-application")})
                 alias(libs.plugins.jetbrains.kotlin.android)
-                alias(libs.plugins.{slug}-hilt)
+                alias({plugin_ref(f"{slug}-hilt")})
             }}
 
             android {{
@@ -1117,19 +1137,18 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
 
             dependencies {{
                 implementation(platform(libs.androidx.compose.bom))
-                implementation(libs.androidx-ui)
-                implementation(libs.androidx-ui-graphics)
-                implementation(libs.androidx-ui-tooling-preview)
-                implementation(libs.androidx-material3)
-                implementation(libs.androidx-activity-compose)
-                implementation(libs.androidx-lifecycle-runtime-ktx)
+                implementation(libs.androidx.ui)
+                implementation(libs.androidx.ui.graphics)
+                implementation(libs.androidx.ui.tooling.preview)
+                implementation(libs.androidx.material3)
+                implementation(libs.androidx.activity.compose)
+                implementation(libs.androidx.lifecycle.runtime.ktx)
                 implementation(projects.core.model)
                 implementation(projects.core.data)
                 implementation(projects.resources)
                 implementation(projects.core.ui)
                 implementation(projects.core.theme)
-                implementation(projects.feature.home)
-                implementation(projects.feature.login)
+            {feature_dependency_block}
             }}
             """
         ),
@@ -1190,6 +1209,7 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             import javax.inject.Inject
             import kotlinx.coroutines.flow.SharingStarted
             import kotlinx.coroutines.flow.StateFlow
+            import kotlinx.coroutines.flow.map
             import kotlinx.coroutines.flow.stateIn
 
             @HiltViewModel
@@ -1197,10 +1217,11 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
                 authRepository: AuthRepository
             ) : ViewModel() {{
                 val isLoggedIn: StateFlow<Boolean> = authRepository.isLoggedIn
+                    .map {{ it }}
                     .stateIn(
                         scope = viewModelScope,
-                        started = SharingStarted.Eagerly,
-                        initialValue = authRepository.isUserLoggedIn()
+                        started = SharingStarted.WhileSubscribed(5_000),
+                        initialValue = false
                     )
             }}
             """
@@ -1221,8 +1242,6 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             import androidx.compose.ui.Modifier
             import androidx.lifecycle.compose.collectAsStateWithLifecycle
             import {base_package}.core.theme.AppTheme
-            import {base_package}.feature.home.navigation.HOME_ROUTE
-            import {base_package}.feature.login.navigation.LOGIN_ROUTE
             import {base_package}.navigation.rememberAppState
             import {base_package}.ui.MainApp
             import dagger.hilt.android.AndroidEntryPoint
@@ -1242,7 +1261,7 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
                             MainApp(
                                 modifier = Modifier.fillMaxSize(),
                                 appState = appState,
-                                startDestination = if (isLoggedIn) HOME_ROUTE else LOGIN_ROUTE
+                                startDestination = if (isLoggedIn) {signed_in_destination} else {signed_out_destination}
                             )
                         }}
                     }}
@@ -1258,8 +1277,12 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             f"""
             package {base_package}.navigation
 
-            enum class TopLevelDestination {{
-                HOME
+            {f'import {base_package}.feature.home.navigation.HOME_ROUTE' if has_home else ''}
+
+            enum class TopLevelDestination(
+                val route: String
+            ) {{
+                {f'HOME(route = HOME_ROUTE)' if has_home else 'MAIN(route = "main")'}
             }}
             """
         ),
@@ -1301,28 +1324,44 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             import androidx.compose.runtime.Composable
             import androidx.compose.ui.Modifier
             import androidx.navigation.compose.NavHost
-            import {base_package}.feature.home.navigation.HOME_ROUTE
-            import {base_package}.feature.home.navigation.homeScreen
-            import {base_package}.feature.login.navigation.LOGIN_ROUTE
-            import {base_package}.feature.login.navigation.loginScreen
+            {"import " + base_package + ".feature.home.navigation.HOME_ROUTE" if has_home else ""}
+            {"import " + base_package + ".feature.home.navigation.homeScreen" if has_home else ""}
+            {"import " + base_package + ".feature.home.navigation.navigateToHome" if has_home else ""}
+            {"import " + base_package + ".feature.login.navigation.LOGIN_ROUTE" if has_login else ""}
+            {"import " + base_package + ".feature.login.navigation.loginScreen" if has_login else ""}
+            {"import " + base_package + ".feature.login.navigation.navigateToLogin" if has_login else ""}
 
             @Composable
             fun MainNavHost(
                 modifier: Modifier = Modifier,
                 appState: AppState,
-                startDestination: String = LOGIN_ROUTE
+                startDestination: String = {signed_out_destination}
             ) {{
                 NavHost(
                     modifier = modifier,
                     navController = appState.navController,
                     startDestination = startDestination
                 ) {{
+                    {dedent(f'''
                     loginScreen(
-                        onNavigateToHome = {{
-                            appState.navController.navigate(HOME_ROUTE)
-                        }}
+                        onNavigateToHome = appState.navController::navigateToHome,
                     )
-                    homeScreen()
+                    ''' ).strip() if has_login and has_home else ""}
+                    {dedent(f'''
+                    homeScreen(
+                        onNavigateToLogin = appState.navController::navigateToLogin,
+                    )
+                    ''' ).strip() if has_home and has_login else ""}
+                    {dedent(f'''
+                    homeScreen(
+                        onNavigateToLogin = {{}},
+                    )
+                    ''' ).strip() if has_home and not has_login else ""}
+                    {dedent(f'''
+                    loginScreen(
+                        onNavigateToHome = {{}},
+                    )
+                    ''' ).strip() if has_login and not has_home else ""}
                 }}
             }}
             """
@@ -1416,7 +1455,7 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
         dedent(
             f"""
             plugins {{
-                alias(libs.plugins.{slug}-feature)
+                alias({plugin_ref(f"{slug}-feature")})
             }}
 
             android {{
@@ -1487,6 +1526,56 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
         )
         nav_extra_signature = "    onNavigateToHome: () -> Unit\n"
         nav_call = f"        {pascal}Route(onNavigateToHome = onNavigateToHome)\n"
+    elif feature_name == "home":
+        screen_content = dedent(
+            f"""
+            package {namespace}
+
+            import androidx.compose.foundation.layout.Arrangement
+            import androidx.compose.foundation.layout.Column
+            import androidx.compose.foundation.layout.fillMaxSize
+            import androidx.compose.material3.Button
+            import androidx.compose.material3.Text
+            import androidx.compose.runtime.Composable
+            import androidx.compose.ui.Alignment
+            import androidx.compose.ui.Modifier
+            import androidx.hilt.navigation.compose.hiltViewModel
+            import androidx.lifecycle.compose.collectAsStateWithLifecycle
+            import {namespace}.component.{pascal}Content
+
+            @Composable
+            fun {pascal}Route(
+                onNavigateToLogin: () -> Unit,
+                viewModel: {pascal}ViewModel = hiltViewModel()
+            ) {{
+                val uiState = viewModel.uiState.collectAsStateWithLifecycle().value
+
+                {pascal}Screen(
+                    title = uiState.title,
+                    onNavigateToLogin = onNavigateToLogin
+                )
+            }}
+
+            @Composable
+            fun {pascal}Screen(
+                title: String,
+                onNavigateToLogin: () -> Unit
+            ) {{
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {{
+                    {pascal}Content(title = title)
+                    Button(onClick = onNavigateToLogin) {{
+                        Text("Go to login")
+                    }}
+                }}
+            }}
+            """
+        )
+        nav_extra_signature = "    onNavigateToLogin: () -> Unit\n"
+        nav_call = f"        {pascal}Route(onNavigateToLogin = onNavigateToLogin)\n"
     else:
         screen_content = dedent(
             f"""
@@ -1639,7 +1728,7 @@ def main() -> None:
     create_root_files(root, args.project_name, slug, shared_modules + feature_modules)
     create_build_logic_classes(root, slug)
     create_shared_modules(root, args.base_package, slug)
-    create_app_module(root, args.project_name, args.base_package, slug)
+    create_app_module(root, args.project_name, args.base_package, slug, features)
     for feature in features:
         create_feature_module(root, args.base_package, slug, feature)
 

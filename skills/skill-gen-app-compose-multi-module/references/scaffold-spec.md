@@ -59,6 +59,13 @@ Generate:
 - `res/values/themes.xml`
 - `res/xml/network_security_config.xml`
 
+App shell expectations:
+- `MainActivity` should be `@AndroidEntryPoint`
+- `MainActivity` should apply the app theme and render `MainApp`
+- `MainViewModel` should aggregate app-level state only, not feature UI state
+- `MainNavHost` should wire feature callbacks from the app layer
+- `TopLevelDestination` should exist even if there is only one starter top-level destination at first
+
 ## Phase 5: Starter Features
 If not in `--minimal` mode, generate at least:
 - `feature/home`
@@ -70,6 +77,12 @@ Each feature should include:
 - `navigation/<Feature>Navigation.kt`
 - `component/<Feature>Content.kt`
 
+Feature quality expectations:
+- each feature must follow `Route` + `Screen` separation
+- `ViewModel` should use `@HiltViewModel`
+- navigation should live in the feature navigation file, not inside app shell files
+- feature files should be coherent starter code, not random placeholders
+
 ## Phase 6: Wiring
 The generated project should already:
 - include all modules in `settings.gradle.kts`
@@ -77,8 +90,12 @@ The generated project should already:
 - wire `home` and `login` in `MainNavHost`
 - expose top-level destination for `home`
 - compile conceptually as a modular Compose app
+- keep app shell and feature files aligned with the reference patterns
 
 ## Expected Quality
 - files should be small but coherent
 - generated code should not be placeholder gibberish
 - namespaces, imports, plugin ids, and package names should all match the provided base package and slug
+- generated files should avoid stale naming from previous domains or example apps
+- generated infra should prefer Hilt wiring for repositories and shared services
+- if a file is only a stub, it should still establish the correct structure for future extension
