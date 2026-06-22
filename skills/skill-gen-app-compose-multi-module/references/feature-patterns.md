@@ -171,6 +171,7 @@ Use these concrete defaults when generating starter features:
 - future generic features: show one coherent screen with title state, one content composable, and no cross-feature dependency unless explicitly requested
 - auth-like starter screens should use staged `AnimatedVisibility` reveal for the form block and CTA block
 - loading states should use the shared `core:ui/feedback/LoadingOverlay` instead of a one-off dialog in the feature
+- starter labels and CTA text should come from `:resources` via `stringResource(...)`, not hardcoded Compose strings
 
 ## Do Not Do
 

@@ -39,12 +39,20 @@ Use this checklist after running the scaffold script and again after adding cust
 - Room setup lives in `core:database`
 - Proto DataStore setup lives in `core:datastore`
 - Ktor client wiring lives in `core:network`
+- `NetworkDataSource.kt` calls `NetworkClients.xxxxx` instead of keeping request code in feature modules
+- starter repositories call datasource methods and persist auth/session state where relevant
 
 ## Naming
 
 - namespaces match the generated base package
 - feature routes, file names, and module names all match the feature name
 - no leftover domain-specific names from older projects, unless intentionally requested
+
+## Resources
+
+- shared strings live in `:resources`
+- starter feature/app shell copy is not hardcoded in Compose unless there is a strong reason
+- top-level destination labels use resource ids rather than raw `String`
 
 ## Smoke Test
 

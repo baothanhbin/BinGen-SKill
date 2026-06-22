@@ -169,6 +169,27 @@ Loading overlay example:
 LoadingOverlay(isVisible = uiState.isLoading)
 ```
 
+## Resource usage
+
+Use the `:resources` module for starter strings and app-shell labels.
+
+Examples:
+
+```kotlin
+Text(text = stringResource(R.string.login_headline))
+```
+
+```kotlin
+enum class TopLevelDestination(
+    val route: String,
+    @StringRes val labelResId: Int,
+)
+```
+
+```kotlin
+Text(stringResource(destination.labelResId))
+```
+
 Auth reveal example:
 
 ```kotlin
@@ -186,6 +207,11 @@ AnimatedVisibility(
 ## Hilt repository wiring
 
 Put repository contracts in `core:data` and bind them with Hilt modules there.
+
+When the feature needs remote data:
+- keep grouped Ktor clients in `core:network/NetworkClients.kt`
+- keep HTTP request methods in `core:network/NetworkDataSource.kt`
+- let `AuthRepositoryImpl` or another repository call the datasource and persist local state as needed
 
 Example:
 

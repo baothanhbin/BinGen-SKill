@@ -42,6 +42,34 @@ def feature_camel(name: str) -> str:
     return pascal[:1].lower() + pascal[1:] if pascal else name
 
 
+def humanize_name(value: str) -> str:
+    parts = [part for part in re.split(r"[^a-zA-Z0-9]+", value) if part]
+    return " ".join(part.capitalize() for part in parts) or value
+
+
+def resource_name(value: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9]+", "_", value).strip("_").lower()
+    if not normalized:
+        return "value"
+    if normalized[0].isdigit():
+        return f"value_{normalized}"
+    return normalized
+
+
+def feature_resource_name(feature_name: str, suffix: str) -> str:
+    return f"{resource_name(feature_name)}_{suffix}"
+
+
+def xml_escape(value: str) -> str:
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "\\'")
+    )
+
+
 def feature_transition_style(name: str) -> str | None:
     horizontal_features = {"login", "signup", "forgotpassword", "verificationotp"}
     vertical_features = {"camera", "processimage", "settings", "lightmeter", "diagnoseresult", "diagnosefailed"}
@@ -689,7 +717,55 @@ def create_module_common(root: Path, module_dir: str, namespace: str, plugin_ali
     write_file(module_path / "src" / "main" / "AndroidManifest.xml", "<manifest />")
 
 
-def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
+def build_shared_strings_xml(project_name: str, features: list[str]) -> str:
+    entries: list[tuple[str, str]] = [("app_name", project_name)]
+
+    for feature in features:
+        feature_name = feature.strip().lower()
+        human_name = humanize_name(feature_name)
+        entries.append((feature_resource_name(feature_name, "title"), human_name))
+
+        if feature_name == "home":
+            entries.extend(
+                [
+                    ("top_level_home", "Home"),
+                    (feature_resource_name(feature_name, "headline"), "Starter home"),
+                    (feature_resource_name(feature_name, "primary_action"), "Go to login"),
+                    (
+                        feature_resource_name(feature_name, "content_description"),
+                        "Use this file for reusable feature-local UI blocks before moving anything into core:ui.",
+                    ),
+                ]
+            )
+        elif feature_name == "login":
+            entries.extend(
+                [
+                    (feature_resource_name(feature_name, "headline"), "Welcome back"),
+                    (
+                        feature_resource_name(feature_name, "subtitle"),
+                        "Sign in with the staged reveal pattern used in AgriDoctorAI auth flows.",
+                    ),
+                    (feature_resource_name(feature_name, "email_label"), "Email"),
+                    (feature_resource_name(feature_name, "password_label"), "Password"),
+                    (feature_resource_name(feature_name, "primary_action"), "Continue"),
+                ]
+            )
+        else:
+            entries.append(
+                (
+                    feature_resource_name(feature_name, "content_description"),
+                    "Use this file for reusable feature-local UI blocks before moving anything into core:ui.",
+                )
+            )
+
+    lines = ["<resources>"]
+    for key, value in entries:
+        lines.append(f'    <string name="{key}">{xml_escape(value)}</string>')
+    lines.append("</resources>")
+    return "\n".join(lines)
+
+
+def create_shared_modules(root: Path, base_package: str, slug: str, project_name: str, features: list[str]) -> None:
     create_module_common(
         root,
         "resources",
@@ -698,16 +774,30 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
     )
     write_file(
         root / "resources" / "src" / "main" / "res" / "values" / "strings.xml",
-        dedent(
-            """
-            <resources>
-                <string name="app_name">Starter App</string>
-            </resources>
-            """
-        ),
+        build_shared_strings_xml(project_name, features),
     )
 
     create_module_common(root, "core/model", f"{base_package}.core.model", f"{slug}-module")
+    model_build = root / "core" / "model" / "build.gradle.kts"
+    model_build.write_text(
+        dedent(
+            f"""
+            plugins {{
+                alias({plugin_ref(f"{slug}-module")})
+                alias(libs.plugins.jetbrains.kotlin.plugin.serialization)
+            }}
+
+            android {{
+                namespace = "{base_package}.core.model"
+            }}
+
+            dependencies {{
+                implementation(libs.kotlinx.serialization.json)
+            }}
+            """
+        ),
+        encoding="utf-8",
+    )
     write_file(
         root / "core" / "model" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.model") / "UserSession.kt",
         dedent(
@@ -735,21 +825,167 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
     )
     theme_package_path = root / "core" / "theme" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.theme")
     write_file(
+        theme_package_path / "Color.kt",
+        dedent(
+            f"""
+            package {base_package}.core.theme
+
+            import androidx.compose.ui.graphics.Color
+
+            val GreenPrimary = Color(0xFF2E7D32)
+            val GreenPrimaryDark = Color(0xFF1B5E20)
+            val GreenSurface = Color(0xFFE8F5E9)
+            val GreenSurfaceDark = Color(0xFF12351A)
+            val BlueAccent = Color(0xFF1565C0)
+            val BlueAccentDark = Color(0xFF90CAF9)
+            val TextPrimary = Color(0xFF1B1F1E)
+            val TextPrimaryDark = Color(0xFFF1F4F1)
+            val TextSecondary = Color(0xFF5F6B66)
+            val TextSecondaryDark = Color(0xFFB7C2BC)
+            val White = Color(0xFFFFFFFF)
+            val ErrorRed = Color(0xFFB3261E)
+            val ErrorRedDark = Color(0xFFF2B8B5)
+            """
+        ),
+    )
+    write_file(
+        theme_package_path / "Font.kt",
+        dedent(
+            f"""
+            package {base_package}.core.theme
+
+            import androidx.compose.ui.text.font.FontFamily
+
+            val AppSans = FontFamily.SansSerif
+            val AppDisplay = FontFamily.SansSerif
+            """
+        ),
+    )
+    write_file(
+        theme_package_path / "Type.kt",
+        dedent(
+            f"""
+            package {base_package}.core.theme
+
+            import androidx.compose.material3.Typography
+            import androidx.compose.ui.text.TextStyle
+            import androidx.compose.ui.text.font.FontWeight
+            import androidx.compose.ui.unit.sp
+
+            val AppTypography = Typography(
+                headlineLarge = TextStyle(
+                    fontFamily = AppDisplay,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 28.sp,
+                    lineHeight = 34.sp,
+                ),
+                headlineMedium = TextStyle(
+                    fontFamily = AppDisplay,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 24.sp,
+                    lineHeight = 30.sp,
+                ),
+                titleLarge = TextStyle(
+                    fontFamily = AppSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    lineHeight = 26.sp,
+                ),
+                titleMedium = TextStyle(
+                    fontFamily = AppSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp,
+                ),
+                bodyLarge = TextStyle(
+                    fontFamily = AppSans,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 16.sp,
+                    lineHeight = 24.sp,
+                ),
+                bodyMedium = TextStyle(
+                    fontFamily = AppSans,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 14.sp,
+                    lineHeight = 21.sp,
+                ),
+                labelLarge = TextStyle(
+                    fontFamily = AppSans,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                ),
+                labelMedium = TextStyle(
+                    fontFamily = AppSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                ),
+            )
+            """
+        ),
+    )
+    write_file(
         theme_package_path / "Theme.kt",
         dedent(
             f"""
             package {base_package}.core.theme
 
+            import android.os.Build
+            import androidx.compose.foundation.isSystemInDarkTheme
             import androidx.compose.material3.MaterialTheme
+            import androidx.compose.material3.darkColorScheme
+            import androidx.compose.material3.dynamicDarkColorScheme
+            import androidx.compose.material3.dynamicLightColorScheme
             import androidx.compose.material3.lightColorScheme
             import androidx.compose.runtime.Composable
+            import androidx.compose.ui.graphics.Color
+            import androidx.compose.ui.platform.LocalContext
 
-            private val LightColors = lightColorScheme()
+            private val LightColors = lightColorScheme(
+                primary = GreenPrimary,
+                onPrimary = White,
+                secondary = BlueAccent,
+                onSecondary = White,
+                background = White,
+                onBackground = TextPrimary,
+                surface = GreenSurface,
+                onSurface = TextPrimary,
+                error = ErrorRed,
+                onError = White,
+            )
+
+            private val DarkColors = darkColorScheme(
+                primary = GreenPrimaryDark,
+                onPrimary = White,
+                secondary = BlueAccentDark,
+                onSecondary = TextPrimary,
+                background = GreenSurfaceDark,
+                onBackground = TextPrimaryDark,
+                surface = Color(0xFF0F1512),
+                onSurface = TextPrimaryDark,
+                error = ErrorRedDark,
+                onError = TextPrimary,
+            )
 
             @Composable
-            fun AppTheme(content: @Composable () -> Unit) {{
+            fun AppTheme(
+                darkTheme: Boolean = isSystemInDarkTheme(),
+                dynamicColor: Boolean = true,
+                content: @Composable () -> Unit,
+            ) {{
+                val colorScheme = when {{
+                    dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {{
+                        val context = LocalContext.current
+                        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                    }}
+                    darkTheme -> DarkColors
+                    else -> LightColors
+                }}
+
                 MaterialTheme(
-                    colorScheme = LightColors,
+                    colorScheme = colorScheme,
+                    typography = AppTypography,
                     content = content
                 )
             }}
@@ -840,37 +1076,72 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             f"""
             package {base_package}.core.network
 
-            import dagger.Module
-            import dagger.Provides
-            import dagger.hilt.InstallIn
-            import dagger.hilt.components.SingletonComponent
             import io.ktor.client.HttpClient
             import io.ktor.client.engine.okhttp.OkHttp
             import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
             import io.ktor.client.plugins.defaultRequest
             import io.ktor.serialization.kotlinx.json.json
-            import javax.inject.Named
-            import javax.inject.Singleton
             import kotlinx.serialization.json.Json
 
-            @Module
-            @InstallIn(SingletonComponent::class)
             object NetworkModule {{
                 private const val API_BASE_URL = BuildConfig.API_BASE_URL
 
-                @Provides
-                @Singleton
-                @Named("auth")
-                fun provideAuthHttpClient(): HttpClient {{
+                fun provideClient(baseUrl: String): HttpClient {{
                     return HttpClient(OkHttp) {{
                         defaultRequest {{
-                            url("$API_BASE_URL/api/auth/")
+                            url(baseUrl)
                         }}
                         install(ContentNegotiation) {{
-                            json(Json {{ ignoreUnknownKeys = true }})
+                            json(Json {{
+                                ignoreUnknownKeys = true
+                                encodeDefaults = true
+                            }})
                         }}
                     }}
                 }}
+
+                fun provideAuthHttpClient(): HttpClient {{
+                    return provideClient("$API_BASE_URL/api/auth/")
+                }}
+            }}
+            """
+        ),
+    )
+    write_file(
+        root / "core" / "model" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.model") / "AuthModels.kt",
+        dedent(
+            f"""
+            package {base_package}.core.model
+
+            import kotlinx.serialization.Serializable
+
+            @Serializable
+            data class LoginRequest(
+                val email: String,
+                val password: String,
+            )
+
+            @Serializable
+            data class AuthResponse(
+                val token: String = "",
+                val userId: String? = null,
+            )
+            """
+        ),
+    )
+    write_file(
+        network_package / "NetworkClients.kt",
+        dedent(
+            f"""
+            package {base_package}.core.network
+
+            import io.ktor.client.HttpClient
+
+            object NetworkClients {{
+                private const val API_BASE_URL = BuildConfig.API_BASE_URL
+
+                val authClient: HttpClient = NetworkModule.provideAuthHttpClient()
+                val historyClient: HttpClient = NetworkModule.provideClient("$API_BASE_URL/api/history/")
             }}
             """
         ),
@@ -881,13 +1152,23 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             f"""
             package {base_package}.core.network
 
-            import io.ktor.client.HttpClient
+            import {base_package}.core.model.AuthResponse
+            import {base_package}.core.model.LoginRequest
+            import io.ktor.client.call.body
+            import io.ktor.client.request.post
+            import io.ktor.client.request.setBody
+            import io.ktor.http.ContentType
+            import io.ktor.http.contentType
             import javax.inject.Inject
-            import javax.inject.Named
 
-            class NetworkDataSource @Inject constructor(
-                @Named("auth") private val authClient: HttpClient,
-            )
+            class NetworkDataSource @Inject constructor() {{
+                suspend fun login(request: LoginRequest): AuthResponse {{
+                    return NetworkClients.authClient.post("login") {{
+                        contentType(ContentType.Application.Json)
+                        setBody(request)
+                    }}.body()
+                }}
+            }}
             """
         ),
     )
@@ -928,10 +1209,13 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
             f"""
             package {base_package}.core.data.repository
 
+            import {base_package}.core.model.AuthResponse
+            import {base_package}.core.model.LoginRequest
             import kotlinx.coroutines.flow.Flow
 
             interface AuthRepository {{
                 val isLoggedIn: Flow<Boolean>
+                suspend fun login(request: LoginRequest): Result<AuthResponse>
                 suspend fun getToken(): String?
             }}
             """
@@ -945,15 +1229,29 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
 
             import {base_package}.core.data.repository.AuthRepository
             import {base_package}.core.datastore.AuthDataStore
+            import {base_package}.core.model.AuthResponse
+            import {base_package}.core.model.LoginRequest
+            import {base_package}.core.network.NetworkDataSource
             import javax.inject.Inject
             import javax.inject.Singleton
             import kotlinx.coroutines.flow.Flow
 
             @Singleton
             class AuthRepositoryImpl @Inject constructor(
-                private val authDataStore: AuthDataStore
+                private val authDataStore: AuthDataStore,
+                private val networkDataSource: NetworkDataSource,
             ) : AuthRepository {{
                 override val isLoggedIn: Flow<Boolean> = authDataStore.isLoggedInFlow()
+
+                override suspend fun login(request: LoginRequest): Result<AuthResponse> {{
+                    return runCatching {{
+                        networkDataSource.login(request)
+                    }}.onSuccess {{ response ->
+                        response.token.takeIf {{ it.isNotBlank() }}?.let {{ token ->
+                            authDataStore.saveSession(token, response.userId)
+                        }}
+                    }}
+                }}
 
                 override suspend fun getToken(): String? = authDataStore.getToken()
             }}
@@ -1366,6 +1664,16 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                     return authDataStore.data.first().jwtToken.takeIf {{ it.isNotBlank() }}
                 }}
 
+                suspend fun saveSession(token: String, userId: String?) {{
+                    authDataStore.updateData {{ current ->
+                        current.toBuilder()
+                            .setJwtToken(token)
+                            .setTimestamp(System.currentTimeMillis())
+                            .setUserId(userId.orEmpty())
+                            .build()
+                    }}
+                }}
+
                 fun isLoggedInFlow(): Flow<Boolean> = authDataStore.data
                     .catch {{ if (it is IOException) emit(AuthProto.getDefaultInstance()) else throw it }}
                     .map {{ it.jwtToken.isNotBlank() }}
@@ -1391,19 +1699,6 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                 fileName = "auth.pb",
                 serializer = AuthProtoSerializer
             )
-            """
-        ),
-    )
-
-    create_module_common(root, "core/alarm", f"{base_package}.core.alarm", f"{slug}-module")
-    alarm_package = root / "core" / "alarm" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.alarm")
-    write_file(
-        alarm_package / "ReminderAlarmScheduler.kt",
-        dedent(
-            f"""
-            package {base_package}.core.alarm
-
-            object ReminderAlarmScheduler
             """
         ),
     )
@@ -1801,13 +2096,15 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             f"""
             package {base_package}.navigation
 
+            import androidx.annotation.StringRes
+            import {base_package}.resources.R
 {top_level_imports}
 
             enum class TopLevelDestination(
                 val route: String,
-                val label: String,
+                @StringRes val labelResId: Int,
             ) {{
-                {f'HOME(route = HOME_ROUTE, label = "Home")' if has_home else 'MAIN(route = "main", label = "Main")'}
+                {f'HOME(route = HOME_ROUTE, labelResId = R.string.top_level_home)' if has_home else 'MAIN(route = "main", labelResId = R.string.app_name)'}
             }}
             """
         ),
@@ -1978,6 +2275,7 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             import androidx.compose.material3.NavigationBarItem
             import androidx.compose.material3.Text
             import androidx.compose.runtime.Composable
+            import androidx.compose.ui.res.stringResource
             import {base_package}.navigation.TopLevelDestination
 
             @Composable
@@ -1991,22 +2289,16 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
                         NavigationBarItem(
                             selected = destination == currentDestination,
                             onClick = {{ onNavigateToDestination(destination) }},
-                            icon = {{ Text(destination.label.take(1)) }},
-                            label = {{ Text(destination.label) }},
+                            icon = {{
+                                Text(stringResource(destination.labelResId).take(1))
+                            }},
+                            label = {{
+                                Text(stringResource(destination.labelResId))
+                            }},
                         )
                     }}
                 }}
             }}
-            """
-        ),
-    )
-    write_file(
-        app_path / "src" / "main" / "res" / "values" / "strings.xml",
-        dedent(
-            f"""
-            <resources>
-                <string name="app_name">{project_name}</string>
-            </resources>
             """
         ),
     )
@@ -2108,11 +2400,13 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             import androidx.compose.ui.Alignment
             import androidx.compose.ui.Modifier
             import androidx.compose.ui.draw.scale
+            import androidx.compose.ui.res.stringResource
             import androidx.compose.ui.text.font.FontWeight
             import androidx.compose.ui.unit.dp
             import androidx.hilt.navigation.compose.hiltViewModel
             import androidx.lifecycle.compose.collectAsStateWithLifecycle
             import {base_package}.core.ui.feedback.LoadingOverlay
+            import {base_package}.resources.R
 
             @Composable
             fun {pascal}Route(
@@ -2153,13 +2447,13 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {{
                         Text(
-                            text = "Welcome back",
+                            text = stringResource(R.string.login_headline),
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Sign in with the staged reveal pattern used in AgriDoctorAI auth flows.",
+                            text = stringResource(R.string.login_subtitle),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Spacer(modifier = Modifier.height(24.dp))
@@ -2178,14 +2472,14 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                                     onValueChange = {{ email = it }},
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
-                                    label = {{ Text("Email") }},
+                                    label = {{ Text(stringResource(R.string.login_email_label)) }},
                                 )
                                 OutlinedTextField(
                                     value = password,
                                     onValueChange = {{ password = it }},
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
-                                    label = {{ Text("Password") }},
+                                    label = {{ Text(stringResource(R.string.login_password_label)) }},
                                 )
                             }}
                         }}
@@ -2211,7 +2505,7 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                                 if (isLoading) {{
                                     CircularProgressIndicator()
                                 }} else {{
-                                    Text("Continue")
+                                    Text(stringResource(R.string.login_primary_action))
                                 }}
                             }}
                         }}
@@ -2249,9 +2543,11 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             import androidx.compose.runtime.LaunchedEffect
             import androidx.compose.ui.Alignment
             import androidx.compose.ui.Modifier
+            import androidx.compose.ui.res.stringResource
             import androidx.compose.ui.unit.dp
             import androidx.hilt.navigation.compose.hiltViewModel
             import androidx.lifecycle.compose.collectAsStateWithLifecycle
+            import {base_package}.resources.R
             import {namespace}.component.{pascal}Content
 
             @Composable
@@ -2288,7 +2584,7 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {{
                     Text(
-                        text = "Starter home",
+                        text = stringResource(R.string.home_headline),
                         style = MaterialTheme.typography.headlineMedium,
                     )
                     AnimatedVisibility(
@@ -2304,7 +2600,7 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                         exit = fadeOut(animationSpec = tween(200)),
                     ) {{
                         Button(onClick = onNavigateToLogin) {{
-                            Text("Go to login")
+                            Text(stringResource(R.string.home_primary_action))
                         }}
                     }}
                 }}
@@ -2419,7 +2715,9 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             import androidx.compose.material3.Text
             import androidx.compose.runtime.Composable
             import androidx.compose.ui.Modifier
+            import androidx.compose.ui.res.stringResource
             import androidx.compose.ui.unit.dp
+            import {base_package}.resources.R
 
             @Composable
             fun {pascal}Content(title: String) {{
@@ -2434,7 +2732,7 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                             style = MaterialTheme.typography.titleLarge,
                         )
                         Text(
-                            text = "Use this file for reusable feature-local UI blocks before moving anything into core:ui.",
+                            text = stringResource(R.string.{feature_resource_name(feature_name, "content_description")}),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }}
@@ -2511,14 +2809,13 @@ def main() -> None:
         ":core:data",
         ":core:database",
         ":core:datastore",
-        ":core:alarm",
         ":core:worker",
     ]
     feature_modules = [f":feature:{name}" for name in features]
 
     create_root_files(root, args.project_name, slug, shared_modules + feature_modules)
     create_build_logic_classes(root, slug)
-    create_shared_modules(root, args.base_package, slug)
+    create_shared_modules(root, args.base_package, slug, args.project_name, features)
     create_app_module(root, args.project_name, args.base_package, slug, features)
     for feature in features:
         create_feature_module(root, args.base_package, slug, feature)

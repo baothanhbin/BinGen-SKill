@@ -16,7 +16,7 @@ Collect or infer these before scaffolding:
 - base package, for example `com.example.plantapp`
 - short Gradle/plugin slug, for example `plantapp`
 - whether to include sample starter features now or only baseline infrastructure
-- whether auth, Room, DataStore, Ktor, and alarm/reminder support should be included immediately
+- whether auth, Room, DataStore, and Ktor should be included immediately
 
 If the user does not specify all of them, make reasonable defaults and state them while scaffolding.
 
@@ -37,6 +37,7 @@ If the user does not specify all of them, make reasonable defaults and state the
 ## Execution Rules
 - Prefer creating the real project files instead of only describing what to do.
 - Keep module names in the form `:core:<name>` and `:feature:<name>`.
+- Keep shared strings, tab labels, and starter UI copy in `:resources` instead of hardcoding them in `app` or `feature/*`.
 - Keep `Route` responsible for `ViewModel`, state collection, and side effects by default.
 - Keep `Screen` focused on UI-ready state and callbacks.
 - Keep reusable UI pieces in `component/`, with `dialog/` and `sheet/` only when needed.
@@ -50,7 +51,7 @@ If the user does not specify all of them, make reasonable defaults and state the
 - Default auth and setup screens to staged `AnimatedVisibility` reveal rather than dropping all controls on screen at once.
 - Avoid leaving placeholder-shaped app shell or feature files when the user expects a starter project that is ready to extend.
 - Remove or rename any leftover project-specific naming from older examples unless the user explicitly wants it.
-- Prefer Hilt-provided modules over global singleton objects when generating infra code for network, data, or persistence layers.
+- Keep fresh-project network access in the `AgriDoctorAI` style: endpoint-group clients in `NetworkClients.kt`, request methods in `NetworkDataSource.kt`, and repositories calling the datasource.
 - If `core:worker` is part of the scaffold, wire `HiltWorkerFactory` in `app/App.kt` instead of leaving workers half-configured.
 
 ## Scaffolding Order
@@ -66,7 +67,6 @@ If the user does not specify all of them, make reasonable defaults and state the
    - `core:data`
    - `core:database`
    - `core:datastore`
-   - `core:alarm`
    - `core:worker`
 5. Create `app` shell with:
    - `App.kt`

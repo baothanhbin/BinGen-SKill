@@ -11,8 +11,19 @@ Use this file when generating or refining `core/*` modules.
 - `core:data`: repository contracts, implementations, bindings
 - `core:database`: Room entities, DAO, database, DI
 - `core:datastore`: Proto definitions, serializers, local persistence
-- `core:alarm`: scheduler or receiver shell
-- `core:worker`: WorkManager workers and scheduler abstractions
+- `core:worker`: WorkManager workers and scheduler abstractions for default background tasks
+
+## resources
+
+Use `:resources` for:
+- shared strings used by `app`
+- bottom bar and top-level destination labels
+- starter feature copy that would otherwise be duplicated or hardcoded
+
+Default rule:
+- if text is shown in UI and is not ephemeral debug text, put it in `resources/src/main/res/values/strings.xml`
+- use `stringResource(...)` in Compose
+- when app shell models need labels, prefer `@StringRes` ids over raw `String`
 
 ## Plugin Rule
 
@@ -26,7 +37,6 @@ Non-UI modules should use the plain android module convention:
 - `core:data`
 - `core:database`
 - `core:datastore`
-- `core:alarm`
 - `core:worker`
 
 ## core:network
@@ -38,36 +48,59 @@ core/network/
   build.gradle.kts
   src/main/java/<base-package>/core/network/
     NetworkModule.kt
+    NetworkClients.kt
     NetworkDataSource.kt
 ```
 
 Pattern:
 
 ```kotlin
-@Module
-@InstallIn(SingletonComponent::class)
 object NetworkModule {
+    private const val API_BASE_URL = BuildConfig.API_BASE_URL
 
-    @Provides
-    @Singleton
-    fun provideAuthHttpClient(): HttpClient {
+    fun provideClient(baseUrl: String): HttpClient {
         return HttpClient(OkHttp) {
             defaultRequest {
-                url(BuildConfig.API_BASE_URL)
+                url(baseUrl)
             }
             install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
+                json(Json {
+                    ignoreUnknownKeys = true
+                    encodeDefaults = true
+                })
             }
         }
     }
+
+    fun provideAuthHttpClient(): HttpClient {
+        return provideClient("$API_BASE_URL/api/auth/")
+    }
+}
+
+object NetworkClients {
+    private const val API_BASE_URL = BuildConfig.API_BASE_URL
+
+    val authClient: HttpClient = NetworkModule.provideAuthHttpClient()
+    val historyClient: HttpClient = NetworkModule.provideClient("$API_BASE_URL/api/history/")
 }
 
 class NetworkDataSource @Inject constructor(
-    private val authClient: HttpClient,
 )
+{
+    suspend fun login(request: LoginRequest): AuthResponse {
+        return NetworkClients.authClient.post("login") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+    }
+}
 ```
 
-Do not leave network access as a bare global object if Hilt wiring is already part of the architecture.
+Default fresh-project rule:
+- keep endpoint-group clients in `NetworkClients.kt`
+- include one extra example client such as `historyClient` so the extension pattern is obvious
+- let `NetworkDataSource.kt` call `NetworkClients.xxxxx`
+- let repositories call the datasource instead of posting directly from feature code
 
 ## core:data
 
@@ -88,13 +121,25 @@ Pattern:
 ```kotlin
 interface AuthRepository {
     val isLoggedIn: Flow<Boolean>
+    suspend fun login(request: LoginRequest): Result<AuthResponse>
     suspend fun getToken(): String?
 }
 
 class AuthRepositoryImpl @Inject constructor(
     private val authDataStore: AuthDataStore,
+    private val networkDataSource: NetworkDataSource,
 ) : AuthRepository {
     override val isLoggedIn: Flow<Boolean> = authDataStore.isLoggedInFlow()
+
+    override suspend fun login(request: LoginRequest): Result<AuthResponse> {
+        return runCatching {
+            networkDataSource.login(request)
+        }.onSuccess { response ->
+            response.token.takeIf { it.isNotBlank() }?.let { token ->
+                authDataStore.saveSession(token, response.userId)
+            }
+        }
+    }
 
     override suspend fun getToken(): String? = authDataStore.getToken()
 }
@@ -142,10 +187,13 @@ Rules:
 
 ## core:theme
 
-The starter theme can stay small, but must be coherent:
-- one theme entrypoint such as `AppTheme`
-- Material3 based
-- no random duplicate theme files
+The starter theme should be small but production-shaped:
+- include `Color.kt` for reusable palette tokens
+- include `Font.kt` for starter font families or safe fallbacks
+- include `Type.kt` for `Typography`
+- include one theme entrypoint such as `AppTheme` in `Theme.kt`
+- stay Material3 based
+- avoid random duplicate theme files
 
 ## core:ui
 

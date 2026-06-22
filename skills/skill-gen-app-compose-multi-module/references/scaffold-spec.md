@@ -36,7 +36,6 @@ Generate these modules with minimal but valid contents:
 - `core:data`
 - `core:database`
 - `core:datastore`
-- `core:alarm`
 - `core:worker`
 
 Each module should include:
@@ -45,16 +44,31 @@ Each module should include:
 - `proguard-rules.pro`
 - `src/main/AndroidManifest.xml`
 
+`resources` expectations:
+- include `src/main/res/values/strings.xml`
+- place starter app-shell and feature copy here instead of hardcoding it in Compose files
+- let `app` and `feature/*` consume those strings through the shared resource module
+
 `core:worker` expectations:
 - include WorkManager dependencies
 - include at least one example worker
 - include a scheduler abstraction and one WorkManager-backed implementation
 - keep worker DI inside the module, not in `feature/*`
 
+`core:network` expectations:
+- include `NetworkClients.kt` for endpoint-group `HttpClient` instances
+- include `NetworkDataSource.kt` that calls `NetworkClients.xxxxx`
+- keep starter repository code calling the datasource rather than issuing HTTP directly from features
+
 `core:ui` expectations:
 - include `navigation/ScreenTransitions.kt`
 - include `feedback/LoadingOverlay.kt`
 - keep shared motion primitives here instead of duplicating them across features
+
+`core:theme` expectations:
+- include `Color.kt`, `Font.kt`, `Type.kt`, and `Theme.kt`
+- provide a coherent Material3 light/dark starter theme
+- use safe default font families unless the project explicitly ships custom font assets
 
 ## Phase 4: App Shell
 Generate:

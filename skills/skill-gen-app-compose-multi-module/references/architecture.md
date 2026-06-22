@@ -18,7 +18,6 @@ core/network/
 core/data/
 core/database/
 core/datastore/
-core/alarm/
 core/worker/
 feature/home/
 feature/login/
@@ -28,16 +27,15 @@ feature/<future-feature>/
 ## Responsibilities
 - `app`: application shell, `NavHost`, app-level state, top-level navigation
 - `build-logic`: convention plugins for app, module, feature, Hilt, Room, Compose
-- `resources`: shared drawables, strings, fonts, raw assets
+- `resources`: shared drawables, strings, fonts, raw assets, starter UI copy for app shell and reusable feature text
 - `core:model`: API models, shared enums, DTOs, small cross-feature value objects
-- `core:theme`: colors, typography, fonts, app theme
+- `core:theme`: colors, typography, font families or fallbacks, and the app theme entrypoint
 - `core:ui`: shared UI helpers, small cross-feature utilities, dialogs, state holders, navigation transitions, loading overlays
-- `core:network`: Ktor clients, network datasource, `BuildConfig.API_BASE_URL`
+- `core:network`: Ktor clients grouped in `NetworkClients`, a `NetworkDataSource` facade, and `BuildConfig.API_BASE_URL`
 - `core:data`: repository contracts, implementations, DI bindings/provides
 - `core:database`: Room database, DAOs, entities, converters, DB DI
 - `core:datastore`: Proto DataStore wrappers and `.proto` files
-- `core:alarm`: reminder/alarm scheduler and receivers
-- `core:worker`: WorkManager workers, scheduler interfaces, and Hilt-backed background job wiring
+- `core:worker`: WorkManager workers, scheduler interfaces, and Hilt-backed background job wiring for default background work
 - `feature:*`: UI, ViewModel, navigation, components, dialogs, sheets per feature
 
 ## Feature Structure
@@ -82,6 +80,7 @@ Add `dialog/` or `sheet/` only when needed.
 ## Data Rules
 - put API DTOs in `core:model`
 - put Ktor clients and datasource in `core:network`
+- let `NetworkDataSource` call `NetworkClients.xxxxx` and keep repositories one step above that facade
 - put repository contracts and impls in `core:data`
 - put Room entities and DAOs in `core:database`
 - put token/session persistence in `core:datastore`

@@ -152,22 +152,49 @@ interface AuthRepository {
 ## core/network/NetworkModule.kt
 
 ```kotlin
-@Module
-@InstallIn(SingletonComponent::class)
 object NetworkModule {
+    private const val API_BASE_URL = BuildConfig.API_BASE_URL
 
-    @Provides
-    @Singleton
-    @Named("auth")
-    fun provideAuthHttpClient(): HttpClient {
+    fun provideClient(baseUrl: String): HttpClient {
         return HttpClient(OkHttp) {
             defaultRequest {
-                url(BuildConfig.API_BASE_URL)
+                url(baseUrl)
             }
             install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
+                json(Json {
+                    ignoreUnknownKeys = true
+                    encodeDefaults = true
+                })
             }
         }
+    }
+
+    fun provideAuthHttpClient(): HttpClient {
+        return provideClient("$API_BASE_URL/api/auth/")
+    }
+}
+```
+
+## core/network/NetworkClients.kt
+
+```kotlin
+object NetworkClients {
+    private const val API_BASE_URL = BuildConfig.API_BASE_URL
+
+    val authClient: HttpClient = NetworkModule.provideAuthHttpClient()
+    val historyClient: HttpClient = NetworkModule.provideClient("$API_BASE_URL/api/history/")
+}
+```
+
+## core/network/NetworkDataSource.kt
+
+```kotlin
+class NetworkDataSource @Inject constructor() {
+    suspend fun login(request: LoginRequest): AuthResponse {
+        return NetworkClients.authClient.post("login") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
     }
 }
 ```
