@@ -2021,7 +2021,11 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Scaffold an AgriDoctorAI-style Android project.")
-    parser.add_argument("--output", required=True, help="Output directory for the new project")
+    parser.add_argument(
+        "--output",
+        required=False,
+        help="Output directory for the new project. Defaults to the current working directory.",
+    )
     parser.add_argument("--project-name", required=True, help="Project name")
     parser.add_argument("--package", required=True, dest="base_package", help="Base package name")
     parser.add_argument("--slug", required=False, help="Short slug for plugin ids")
@@ -2032,7 +2036,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    root = Path(args.output).expanduser().resolve()
+    root = Path(args.output).expanduser().resolve() if args.output else Path.cwd().resolve()
     root.mkdir(parents=True, exist_ok=True)
 
     slug = slugify(args.slug or args.project_name)

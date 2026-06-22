@@ -82,7 +82,6 @@ Run the scaffold script like this:
 
 ```powershell
 python scripts/scaffold_project.py ^
-  --output "D:\work\MyPlantApp" ^
   --project-name "MyPlantApp" ^
   --package "com.example.myplantapp" ^
   --slug "myplantapp" ^
@@ -90,6 +89,7 @@ python scripts/scaffold_project.py ^
 ```
 
 Optional flags:
+- `--output "D:\work\MyPlantApp"`: scaffold into another folder; if omitted, scaffold into the current working directory
 - `--minimal`: create only baseline modules and app shell without starter feature modules
 - `--features "home,login,settings"`: create additional starter feature skeletons
 
