@@ -1,8 +1,8 @@
 ![Compose Multi-Module Banner](assets/readme-banner.png)
 
-# Skill Gen App Compose Multi Module
+# Skill Build App Compose Multi Module
 
-A Codex skill for scaffolding a brand-new Android project with a Compose-first multi-module architecture inspired by the `AgriDoctorAI` structure.
+A Codex skill for scaffolding a brand-new Android project with a Compose-first multi-module architecture inspired.
 
 ## Layout
 
