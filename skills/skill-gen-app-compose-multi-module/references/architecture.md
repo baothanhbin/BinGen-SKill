@@ -31,7 +31,7 @@ feature/<future-feature>/
 - `resources`: shared drawables, strings, fonts, raw assets
 - `core:model`: API models, shared enums, DTOs, small cross-feature value objects
 - `core:theme`: colors, typography, fonts, app theme
-- `core:ui`: shared UI helpers, small cross-feature utilities, dialogs, state holders
+- `core:ui`: shared UI helpers, small cross-feature utilities, dialogs, state holders, navigation transitions, loading overlays
 - `core:network`: Ktor clients, network datasource, `BuildConfig.API_BASE_URL`
 - `core:data`: repository contracts, implementations, DI bindings/provides
 - `core:database`: Room database, DAOs, entities, converters, DB DI
@@ -76,6 +76,8 @@ Add `dialog/` or `sheet/` only when needed.
 - use `collectAsStateWithLifecycle()` by default in route level composables
 - let `Route` wire `ViewModel`, state collection, and side effects
 - let `Screen` receive UI-ready state and callbacks
+- centralize structural transitions in `core:ui/navigation`
+- use staged reveal and short `AnimatedVisibility` patterns where the source project does
 
 ## Data Rules
 - put API DTOs in `core:model`

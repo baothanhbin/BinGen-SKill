@@ -119,6 +119,7 @@ Rules:
 - `app` imports feature navigation extensions, not feature screens directly
 - wire callbacks between features at the app level
 - top-level destinations should be explicit
+- app shell should not invent ad-hoc transitions; feature navigation files should call shared helpers from `core:ui/navigation`
 
 Example:
 
@@ -160,7 +161,9 @@ enum class TopLevelDestination(
 
 ## MainApp
 
-Keep it as a simple composition root around `MainNavHost` and app chrome:
+Keep it as a simple composition root around `MainNavHost` and app chrome.
+
+If the app has bottom navigation, follow the `AgriDoctorAI` pattern and animate the bar with `AnimatedVisibility`:
 
 ```kotlin
 @Composable
@@ -169,11 +172,41 @@ fun MainApp(
     startDestination: String,
     modifier: Modifier = Modifier,
 ) {
-    MainNavHost(
-        modifier = modifier,
-        appState = appState,
-        startDestination = startDestination,
-    )
+    val currentDestination = appState.currentTopLevelDestination
+    var bottomBarDestination by remember { mutableStateOf<TopLevelDestination?>(null) }
+
+    if (currentDestination != null) {
+        bottomBarDestination = currentDestination
+    }
+
+    Surface(modifier = modifier.fillMaxSize()) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize(),
+            ) {
+                MainNavHost(
+                    modifier = Modifier.fillMaxSize(),
+                    appState = appState,
+                    startDestination = startDestination,
+                )
+            }
+            AnimatedVisibility(
+                visible = currentDestination != null,
+                enter = fadeIn(animationSpec = tween(durationMillis = 160)),
+                exit = fadeOut(animationSpec = tween(durationMillis = 120)),
+            ) {
+                bottomBarDestination?.let { destination ->
+                    MainBottomNavBar(
+                        destinations = appState.topLevelDestinations,
+                        currentDestination = destination,
+                        onNavigateToDestination = appState::navigateToTopLevelDestination,
+                    )
+                }
+            }
+        }
+    }
 }
 ```
 

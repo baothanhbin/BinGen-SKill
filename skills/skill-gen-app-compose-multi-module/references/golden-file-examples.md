@@ -52,6 +52,49 @@ fun MainNavHost(
 }
 ```
 
+## app/ui/MainApp.kt
+
+```kotlin
+@Composable
+fun MainApp(
+    appState: AppState,
+    startDestination: String,
+    modifier: Modifier = Modifier,
+) {
+    val currentDestination = appState.currentTopLevelDestination
+    var bottomBarDestination by remember { mutableStateOf<TopLevelDestination?>(null) }
+
+    if (currentDestination != null) {
+        bottomBarDestination = currentDestination
+    }
+
+    Surface(modifier = modifier.fillMaxSize()) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize(),
+            ) {
+                MainNavHost(
+                    modifier = Modifier.fillMaxSize(),
+                    appState = appState,
+                    startDestination = startDestination,
+                )
+            }
+            AnimatedVisibility(
+                visible = currentDestination != null,
+                enter = fadeIn(animationSpec = tween(durationMillis = 160)),
+                exit = fadeOut(animationSpec = tween(durationMillis = 120)),
+            ) {
+                bottomBarDestination?.let { destination ->
+                    MainBottomNavBar(...)
+                }
+            }
+        }
+    }
+}
+```
+
 ## feature/home/HomeScreen.kt
 
 ```kotlin

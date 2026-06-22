@@ -153,8 +153,22 @@ Only add reusable items that are cross-feature:
 - tiny state holders
 - reusable dialogs
 - shared components
+- shared navigation transitions
+- shared loading/feedback overlays
 
 Do not move feature-specific components into `core:ui`.
+
+Expected starter files:
+
+```text
+core/ui/
+  feedback/
+    LoadingOverlay.kt
+  navigation/
+    ScreenTransitions.kt
+  util/
+    LocationStateHolder.kt
+```
 
 ## core:worker
 

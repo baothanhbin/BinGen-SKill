@@ -21,6 +21,7 @@ Use this checklist after running the scaffold script and again after adding cust
 - `MainActivity` is `@AndroidEntryPoint`
 - `MainViewModel` does not use `runBlocking` for initial state
 - `MainNavHost` wires feature callbacks at the app level
+- `MainApp` uses consistent app chrome visibility animation if bottom navigation exists
 
 ## Features
 
@@ -28,6 +29,8 @@ Use this checklist after running the scaffold script and again after adding cust
 - `Route` owns `collectAsStateWithLifecycle()` and event collection
 - `Screen` receives state + callbacks only
 - feature navigation files own route constants and `navigateTo<Feature>()`
+- auth/process features use shared transition helpers instead of bespoke animation code
+- reusable loading motion lives in `core:ui/feedback`, not copied per feature
 
 ## Data + DI
 

@@ -6,6 +6,7 @@ Use these patterns when extending the scaffold after the base project is generat
 - Feature route + screen split
 - Feature ViewModel
 - Feature navigation file
+- Shared animation wiring
 - Hilt repository wiring
 - Room database wiring
 - Proto DataStore wiring
@@ -133,6 +134,53 @@ fun NavGraphBuilder.homeScreen(
         )
     }
 }
+```
+
+## Shared animation wiring
+
+For new projects that follow the `AgriDoctorAI` style:
+
+- keep transition helpers in `core:ui/navigation/ScreenTransitions.kt`
+- keep reusable loading overlays in `core:ui/feedback/LoadingOverlay.kt`
+- keep app chrome motion in `app/ui/MainApp.kt`
+- keep staged form reveal in the feature screen itself
+
+Auth navigation example:
+
+```kotlin
+fun NavGraphBuilder.loginScreen(
+    onNavigateToHome: () -> Unit,
+) {
+    composable(
+        route = LOGIN_ROUTE,
+        enterTransition = { slideInFromRightHalf() },
+        exitTransition = { slideOutToLeftHalf() },
+        popEnterTransition = { slideInFromLeftHalf() },
+        popExitTransition = { slideOutToRightHalf() },
+    ) {
+        LoginRoute(onNavigateToHome = onNavigateToHome)
+    }
+}
+```
+
+Loading overlay example:
+
+```kotlin
+LoadingOverlay(isVisible = uiState.isLoading)
+```
+
+Auth reveal example:
+
+```kotlin
+AnimatedVisibility(
+    visible = true,
+    enter = fadeIn(animationSpec = tween(600, delayMillis = 600)),
+) { formBlock() }
+
+AnimatedVisibility(
+    visible = true,
+    enter = fadeIn(animationSpec = tween(600, delayMillis = 800)),
+) { actionBlock() }
 ```
 
 ## Hilt repository wiring

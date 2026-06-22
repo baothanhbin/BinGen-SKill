@@ -51,6 +51,11 @@ Each module should include:
 - include a scheduler abstraction and one WorkManager-backed implementation
 - keep worker DI inside the module, not in `feature/*`
 
+`core:ui` expectations:
+- include `navigation/ScreenTransitions.kt`
+- include `feedback/LoadingOverlay.kt`
+- keep shared motion primitives here instead of duplicating them across features
+
 ## Phase 4: App Shell
 Generate:
 - `App.kt` with `@HiltAndroidApp`
@@ -72,6 +77,7 @@ App shell expectations:
 - `MainViewModel` should aggregate app-level state only, not feature UI state
 - `MainNavHost` should wire feature callbacks from the app layer
 - `TopLevelDestination` should exist even if there is only one starter top-level destination at first
+- `MainApp` should animate bottom bar visibility if a top-level destination shell exists
 
 ## Phase 5: Starter Features
 If not in `--minimal` mode, generate at least:
@@ -89,6 +95,8 @@ Feature quality expectations:
 - `ViewModel` should use `@HiltViewModel`
 - navigation should live in the feature navigation file, not inside app shell files
 - feature files should be coherent starter code, not random placeholders
+- auth-like starter screens should use staged reveal rather than flat placeholder layouts
+- navigation files should use shared transition helpers when the feature flow clearly maps to auth or process-style motion
 
 ## Phase 6: Wiring
 The generated project should already:

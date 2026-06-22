@@ -42,6 +42,17 @@ def feature_camel(name: str) -> str:
     return pascal[:1].lower() + pascal[1:] if pascal else name
 
 
+def feature_transition_style(name: str) -> str | None:
+    horizontal_features = {"login", "signup", "forgotpassword", "verificationotp"}
+    vertical_features = {"camera", "processimage", "settings", "lightmeter", "diagnoseresult", "diagnosefailed"}
+
+    if name in horizontal_features:
+        return "horizontal"
+    if name in vertical_features:
+        return "vertical"
+    return None
+
+
 def navigation_signature(extra_signature: str) -> str:
     extra_signature = extra_signature.rstrip()
     if not extra_signature:
@@ -51,6 +62,48 @@ def navigation_signature(extra_signature: str) -> str:
 
 def navigation_route_call(nav_call: str) -> str:
     return indent(nav_call.rstrip(), " " * 8).rstrip()
+
+
+def feature_navigation_transition_imports(base_package: str, feature_name: str) -> str:
+    style = feature_transition_style(feature_name)
+    if style == "horizontal":
+        return dedent(
+            f"""
+            import {base_package}.core.ui.navigation.slideInFromLeftHalf
+            import {base_package}.core.ui.navigation.slideInFromRightHalf
+            import {base_package}.core.ui.navigation.slideOutToLeftHalf
+            import {base_package}.core.ui.navigation.slideOutToRightHalf
+            """
+        ).strip()
+    if style == "vertical":
+        return dedent(
+            f"""
+            import {base_package}.core.ui.navigation.slideInFromBottomHalf
+            import {base_package}.core.ui.navigation.slideInFromTopHalf
+            import {base_package}.core.ui.navigation.slideOutToBottomHalf
+            import {base_package}.core.ui.navigation.slideOutToTopHalf
+            """
+        ).strip()
+    return ""
+
+
+def feature_navigation_transition_lines(feature_name: str) -> list[str]:
+    style = feature_transition_style(feature_name)
+    if style == "horizontal":
+        return [
+            "enterTransition = { slideInFromRightHalf() }",
+            "exitTransition = { slideOutToLeftHalf() }",
+            "popEnterTransition = { slideInFromLeftHalf() }",
+            "popExitTransition = { slideOutToRightHalf() }",
+        ]
+    if style == "vertical":
+        return [
+            "enterTransition = { slideInFromBottomHalf() }",
+            "exitTransition = { slideOutToTopHalf() }",
+            "popEnterTransition = { slideInFromTopHalf() }",
+            "popExitTransition = { slideOutToBottomHalf() }",
+        ]
+    return []
 
 
 def feature_specific_viewmodel_logic(feature_name: str, pascal: str) -> str:
@@ -249,6 +302,7 @@ def create_root_files(root: Path, project_name: str, slug: str, module_includes:
             androidx-lifecycle-runtime-compose = {{ group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }}
             androidx-activity-compose = {{ group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }}
             androidx-compose-bom = {{ group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }}
+            androidx-compose-animation = {{ group = "androidx.compose.animation", name = "animation" }}
             androidx-ui = {{ group = "androidx.compose.ui", name = "ui" }}
             androidx-ui-graphics = {{ group = "androidx.compose.ui", name = "ui-graphics" }}
             androidx-ui-tooling = {{ group = "androidx.compose.ui", name = "ui-tooling" }}
@@ -465,6 +519,7 @@ def create_build_logic_classes(root: Path, slug: str) -> None:
 
                         dependencies {{
                             add("implementation", platform(libs.findLibrary("androidx-compose-bom").get()))
+                            add("implementation", libs.findLibrary("androidx-compose-animation").get())
                             add("implementation", project(":resources"))
                             add("implementation", project(":core:model"))
                             add("implementation", libs.findLibrary("androidx-ui").get())
@@ -708,8 +763,10 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
         f"{base_package}.core.ui",
         f"{slug}-compose-module",
         '    implementation(platform(libs.androidx.compose.bom))\n'
+        '    implementation(libs.androidx.compose.animation)\n'
         '    implementation(libs.androidx.material3)\n'
-        '    implementation(libs.androidx.ui)',
+        '    implementation(libs.androidx.ui)\n'
+        '    implementation(libs.androidx.navigation.compose)',
     )
     ui_package = root / "core" / "ui" / "src" / "main" / "java" / package_to_path(f"{base_package}.core.ui")
     write_file(
@@ -1053,6 +1110,169 @@ def create_shared_modules(root: Path, base_package: str, slug: str) -> None:
                 fun providePlaceholderDao(
                     database: AppDatabase
                 ): PlaceholderDao = database.placeholderDao()
+            }}
+            """
+        ),
+    )
+    write_file(
+        ui_package / "navigation" / "ScreenTransitions.kt",
+        dedent(
+            f"""
+            package {base_package}.core.ui.navigation
+
+            import androidx.compose.animation.AnimatedContentTransitionScope
+            import androidx.compose.animation.EnterTransition
+            import androidx.compose.animation.ExitTransition
+            import androidx.compose.animation.core.FastOutSlowInEasing
+            import androidx.compose.animation.core.tween
+            import androidx.compose.animation.slideInHorizontally
+            import androidx.compose.animation.slideInVertically
+            import androidx.compose.animation.slideOutHorizontally
+            import androidx.compose.animation.slideOutVertically
+            import androidx.compose.ui.unit.IntOffset
+            import androidx.navigation.NavBackStackEntry
+
+            private const val HALF_SCREEN_DIVISOR = 2
+            private const val NAV_DURATION_MS = 180
+            private val navSlideSpec = tween<IntOffset>(
+                durationMillis = NAV_DURATION_MS,
+                easing = FastOutSlowInEasing,
+            )
+
+            fun AnimatedContentTransitionScope<NavBackStackEntry>.slideInFromRightHalf(): EnterTransition {{
+                return slideInHorizontally(
+                    animationSpec = navSlideSpec,
+                    initialOffsetX = {{ fullWidth -> fullWidth / HALF_SCREEN_DIVISOR }},
+                )
+            }}
+
+            fun AnimatedContentTransitionScope<NavBackStackEntry>.slideOutToLeftHalf(): ExitTransition {{
+                return slideOutHorizontally(
+                    animationSpec = navSlideSpec,
+                    targetOffsetX = {{ fullWidth -> -fullWidth }},
+                )
+            }}
+
+            fun AnimatedContentTransitionScope<NavBackStackEntry>.slideInFromLeftHalf(): EnterTransition {{
+                return slideInHorizontally(
+                    animationSpec = navSlideSpec,
+                    initialOffsetX = {{ fullWidth -> -fullWidth / HALF_SCREEN_DIVISOR }},
+                )
+            }}
+
+            fun AnimatedContentTransitionScope<NavBackStackEntry>.slideOutToRightHalf(): ExitTransition {{
+                return slideOutHorizontally(
+                    animationSpec = navSlideSpec,
+                    targetOffsetX = {{ fullWidth -> fullWidth }},
+                )
+            }}
+
+            fun AnimatedContentTransitionScope<NavBackStackEntry>.slideInFromBottomHalf(): EnterTransition {{
+                return slideInVertically(
+                    animationSpec = navSlideSpec,
+                    initialOffsetY = {{ fullHeight -> fullHeight / HALF_SCREEN_DIVISOR }},
+                )
+            }}
+
+            fun AnimatedContentTransitionScope<NavBackStackEntry>.slideOutToTopHalf(): ExitTransition {{
+                return slideOutVertically(
+                    animationSpec = navSlideSpec,
+                    targetOffsetY = {{ fullHeight -> -fullHeight }},
+                )
+            }}
+
+            fun AnimatedContentTransitionScope<NavBackStackEntry>.slideInFromTopHalf(): EnterTransition {{
+                return slideInVertically(
+                    animationSpec = navSlideSpec,
+                    initialOffsetY = {{ fullHeight -> -fullHeight / HALF_SCREEN_DIVISOR }},
+                )
+            }}
+
+            fun AnimatedContentTransitionScope<NavBackStackEntry>.slideOutToBottomHalf(): ExitTransition {{
+                return slideOutVertically(
+                    animationSpec = navSlideSpec,
+                    targetOffsetY = {{ fullHeight -> fullHeight }},
+                )
+            }}
+            """
+        ),
+    )
+    write_file(
+        ui_package / "feedback" / "LoadingOverlay.kt",
+        dedent(
+            f"""
+            package {base_package}.core.ui.feedback
+
+            import androidx.compose.animation.AnimatedVisibility
+            import androidx.compose.animation.core.tween
+            import androidx.compose.animation.fadeIn
+            import androidx.compose.animation.fadeOut
+            import androidx.compose.animation.scaleIn
+            import androidx.compose.animation.scaleOut
+            import androidx.compose.foundation.background
+            import androidx.compose.foundation.clickable
+            import androidx.compose.foundation.interaction.MutableInteractionSource
+            import androidx.compose.foundation.layout.Box
+            import androidx.compose.foundation.layout.fillMaxSize
+            import androidx.compose.foundation.layout.size
+            import androidx.compose.foundation.shape.RoundedCornerShape
+            import androidx.compose.material3.CircularProgressIndicator
+            import androidx.compose.material3.MaterialTheme
+            import androidx.compose.material3.Surface
+            import androidx.compose.runtime.Composable
+            import androidx.compose.runtime.remember
+            import androidx.compose.ui.Alignment
+            import androidx.compose.ui.Modifier
+            import androidx.compose.ui.graphics.Color
+            import androidx.compose.ui.unit.dp
+
+            @Composable
+            fun LoadingOverlay(
+                isVisible: Boolean,
+                modifier: Modifier = Modifier,
+            ) {{
+                AnimatedVisibility(
+                    visible = isVisible,
+                    enter = fadeIn(animationSpec = tween(durationMillis = 180)) +
+                        scaleIn(
+                            initialScale = 0.92f,
+                            animationSpec = tween(durationMillis = 180),
+                        ),
+                    exit = fadeOut(animationSpec = tween(durationMillis = 120)) +
+                        scaleOut(
+                            targetScale = 0.92f,
+                            animationSpec = tween(durationMillis = 120),
+                        ),
+                ) {{
+                    Box(
+                        modifier = modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.18f))
+                            .clickable(
+                                interactionSource = remember {{ MutableInteractionSource() }},
+                                indication = null,
+                                onClick = {{}},
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {{
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                            tonalElevation = 6.dp,
+                            shadowElevation = 16.dp,
+                        ) {{
+                            Box(
+                                modifier = Modifier.size(88.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {{
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 3.dp,
+                                )
+                            }}
+                        }}
+                    }}
+                }}
             }}
             """
         ),
@@ -1427,6 +1647,7 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
         "",
         "dependencies {",
         "    implementation(platform(libs.androidx.compose.bom))",
+        "    implementation(libs.androidx.compose.animation)",
         "    implementation(libs.androidx.ui)",
         "    implementation(libs.androidx.ui.graphics)",
         "    implementation(libs.androidx.ui.tooling.preview)",
@@ -1584,8 +1805,9 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
 
             enum class TopLevelDestination(
                 val route: String,
+                val label: String,
             ) {{
-                {f'HOME(route = HOME_ROUTE)' if has_home else 'MAIN(route = "main")'}
+                {f'HOME(route = HOME_ROUTE, label = "Home")' if has_home else 'MAIN(route = "main", label = "Main")'}
             }}
             """
         ),
@@ -1597,23 +1819,52 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             package {base_package}.navigation
 
             import androidx.compose.runtime.Composable
+            import androidx.compose.runtime.getValue
             import androidx.compose.runtime.remember
+            import androidx.navigation.NavDestination
             import androidx.navigation.NavHostController
+            import androidx.navigation.NavDestination.Companion.hierarchy
             import androidx.navigation.compose.rememberNavController
+            import androidx.navigation.compose.currentBackStackEntryAsState
             import {base_package}.core.ui.util.LocationStateHolder
+            {f'import {base_package}.feature.home.navigation.HOME_ROUTE' if has_home else ''}
+            {f'import {base_package}.feature.home.navigation.navigateToHome' if has_home else ''}
 
             class AppState(
                 val navController: NavHostController,
                 val locationStateHolder: LocationStateHolder,
-            )
+            ) {{
+                val topLevelDestinations: List<TopLevelDestination> = buildList {{
+                    {('add(TopLevelDestination.HOME)' if has_home else '')}
+                }}
+
+                val currentTopLevelDestination: TopLevelDestination?
+                    get() {{
+                        val destination = navController.currentDestination ?: return null
+                        return topLevelDestinations.firstOrNull {{ topLevelDestination ->
+                            destination.hasRoute(topLevelDestination.route)
+                        }}
+                    }}
+
+                fun navigateToTopLevelDestination(destination: TopLevelDestination) {{
+                    when (destination) {{
+                        {('TopLevelDestination.HOME -> navController.navigateToHome()' if has_home else 'TopLevelDestination.MAIN -> Unit')}
+                    }}
+                }}
+            }}
 
             @Composable
             fun rememberAppState(): AppState {{
                 val navController = rememberNavController()
+                val backStackEntry by navController.currentBackStackEntryAsState()
                 val locationStateHolder = remember {{ LocationStateHolder() }}
-                return remember(navController, locationStateHolder) {{
+                return remember(navController, locationStateHolder, backStackEntry) {{
                     AppState(navController, locationStateHolder)
                 }}
+            }}
+
+            private fun NavDestination.hasRoute(route: String): Boolean {{
+                return this.route == route || hierarchy.any {{ it.route == route }}
             }}
             """
         ),
@@ -1653,10 +1904,24 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             f"""
             package {base_package}.ui
 
+            import androidx.compose.animation.AnimatedVisibility
+            import androidx.compose.animation.core.tween
+            import androidx.compose.animation.fadeIn
+            import androidx.compose.animation.fadeOut
+            import androidx.compose.foundation.layout.Box
+            import androidx.compose.foundation.layout.Column
+            import androidx.compose.foundation.layout.fillMaxSize
+            import androidx.compose.foundation.layout.weight
+            import androidx.compose.material3.Surface
             import androidx.compose.runtime.Composable
+            import androidx.compose.runtime.getValue
+            import androidx.compose.runtime.mutableStateOf
+            import androidx.compose.runtime.remember
+            import androidx.compose.runtime.setValue
             import androidx.compose.ui.Modifier
             import {base_package}.navigation.AppState
             import {base_package}.navigation.MainNavHost
+            import {base_package}.navigation.TopLevelDestination
 
             @Composable
             fun MainApp(
@@ -1664,11 +1929,41 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
                 startDestination: String,
                 modifier: Modifier = Modifier,
             ) {{
-                MainNavHost(
-                    appState = appState,
-                    startDestination = startDestination,
-                    modifier = modifier,
-                )
+                val currentDestination = appState.currentTopLevelDestination
+                var bottomBarDestination by remember {{ mutableStateOf<TopLevelDestination?>(null) }}
+
+                if (currentDestination != null) {{
+                    bottomBarDestination = currentDestination
+                }}
+
+                Surface(modifier = modifier.fillMaxSize()) {{
+                    Column {{
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxSize(),
+                        ) {{
+                            MainNavHost(
+                                appState = appState,
+                                startDestination = startDestination,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }}
+                        AnimatedVisibility(
+                            visible = currentDestination != null,
+                            enter = fadeIn(animationSpec = tween(durationMillis = 160)),
+                            exit = fadeOut(animationSpec = tween(durationMillis = 120)),
+                        ) {{
+                            bottomBarDestination?.let {{ destination ->
+                                MainBottomNavBar(
+                                    destinations = appState.topLevelDestinations,
+                                    currentDestination = destination,
+                                    onNavigateToDestination = appState::navigateToTopLevelDestination,
+                                )
+                            }}
+                        }}
+                    }}
+                }}
             }}
             """
         ),
@@ -1679,10 +1974,29 @@ def create_app_module(root: Path, project_name: str, base_package: str, slug: st
             f"""
             package {base_package}.ui
 
+            import androidx.compose.material3.NavigationBar
+            import androidx.compose.material3.NavigationBarItem
+            import androidx.compose.material3.Text
             import androidx.compose.runtime.Composable
+            import {base_package}.navigation.TopLevelDestination
 
             @Composable
-            fun MainBottomNavBar() = Unit
+            fun MainBottomNavBar(
+                destinations: List<TopLevelDestination>,
+                currentDestination: TopLevelDestination,
+                onNavigateToDestination: (TopLevelDestination) -> Unit,
+            ) {{
+                NavigationBar {{
+                    destinations.forEach {{ destination ->
+                        NavigationBarItem(
+                            selected = destination == currentDestination,
+                            onClick = {{ onNavigateToDestination(destination) }},
+                            icon = {{ Text(destination.label.take(1)) }},
+                            label = {{ Text(destination.label) }},
+                        )
+                    }}
+                }}
+            }}
             """
         ),
     )
@@ -1755,23 +2069,50 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
     feature_package = module_path / "src" / "main" / "java" / package_to_path(namespace)
     route_name = f"{feature_name}"
     route_constant = f"{feature_name.upper()}_ROUTE"
+    transition_imports = feature_navigation_transition_imports(base_package, feature_name)
+    transition_lines = feature_navigation_transition_lines(feature_name)
+    composable_parameters = ["route = " + route_constant]
+    if transition_lines:
+        composable_parameters.extend(transition_lines)
+    composable_signature = ",\n".join(f"        {line}" for line in composable_parameters)
 
     if feature_name == "login":
         screen_content = dedent(
             f"""
             package {namespace}
 
+            import androidx.compose.animation.AnimatedVisibility
+            import androidx.compose.animation.core.tween
+            import androidx.compose.animation.fadeIn
+            import androidx.compose.animation.fadeOut
             import androidx.compose.foundation.layout.Arrangement
+            import androidx.compose.foundation.layout.Box
             import androidx.compose.foundation.layout.Column
+            import androidx.compose.foundation.layout.Spacer
             import androidx.compose.foundation.layout.fillMaxSize
+            import androidx.compose.foundation.layout.fillMaxWidth
+            import androidx.compose.foundation.layout.height
+            import androidx.compose.foundation.layout.padding
+            import androidx.compose.foundation.shape.RoundedCornerShape
             import androidx.compose.material3.Button
+            import androidx.compose.material3.CircularProgressIndicator
+            import androidx.compose.material3.MaterialTheme
+            import androidx.compose.material3.OutlinedTextField
             import androidx.compose.material3.Text
             import androidx.compose.runtime.Composable
+            import androidx.compose.runtime.LaunchedEffect
+            import androidx.compose.runtime.getValue
+            import androidx.compose.runtime.mutableStateOf
+            import androidx.compose.runtime.remember
+            import androidx.compose.runtime.setValue
             import androidx.compose.ui.Alignment
             import androidx.compose.ui.Modifier
+            import androidx.compose.ui.draw.scale
+            import androidx.compose.ui.text.font.FontWeight
+            import androidx.compose.ui.unit.dp
             import androidx.hilt.navigation.compose.hiltViewModel
             import androidx.lifecycle.compose.collectAsStateWithLifecycle
-            import androidx.compose.runtime.LaunchedEffect
+            import {base_package}.core.ui.feedback.LoadingOverlay
 
             @Composable
             fun {pascal}Route(
@@ -1799,15 +2140,83 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                 isLoading: Boolean,
                 onLoginClick: () -> Unit,
             ) {{
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {{
-                    Text("Login")
-                    Button(onClick = onLoginClick, enabled = !isLoading) {{
-                        Text("Continue")
+                var email by remember {{ mutableStateOf("") }}
+                var password by remember {{ mutableStateOf("") }}
+                val isFormValid = email.isNotBlank() && password.isNotBlank()
+
+                Box(modifier = Modifier.fillMaxSize()) {{
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp, vertical = 32.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {{
+                        Text(
+                            text = "Welcome back",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Sign in with the staged reveal pattern used in AgriDoctorAI auth flows.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn(animationSpec = tween(600, delayMillis = 600)),
+                            exit = fadeOut(animationSpec = tween(600)),
+                        ) {{
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {{
+                                OutlinedTextField(
+                                    value = email,
+                                    onValueChange = {{ email = it }},
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    label = {{ Text("Email") }},
+                                )
+                                OutlinedTextField(
+                                    value = password,
+                                    onValueChange = {{ password = it }},
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    label = {{ Text("Password") }},
+                                )
+                            }}
+                        }}
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn(animationSpec = tween(600, delayMillis = 800)),
+                            exit = fadeOut(animationSpec = tween(600)),
+                        ) {{
+                            val buttonScale = if (isFormValid && !isLoading) 1f else 0.98f
+
+                            Button(
+                                onClick = onLoginClick,
+                                enabled = isFormValid && !isLoading,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .scale(buttonScale),
+                                shape = RoundedCornerShape(16.dp),
+                            ) {{
+                                if (isLoading) {{
+                                    CircularProgressIndicator()
+                                }} else {{
+                                    Text("Continue")
+                                }}
+                            }}
+                        }}
                     }}
+                    LoadingOverlay(isVisible = isLoading)
                 }}
             }}
             """
@@ -1825,17 +2234,24 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             f"""
             package {namespace}
 
+            import androidx.compose.animation.AnimatedVisibility
+            import androidx.compose.animation.core.tween
+            import androidx.compose.animation.fadeIn
+            import androidx.compose.animation.fadeOut
             import androidx.compose.foundation.layout.Arrangement
             import androidx.compose.foundation.layout.Column
             import androidx.compose.foundation.layout.fillMaxSize
+            import androidx.compose.foundation.layout.padding
             import androidx.compose.material3.Button
+            import androidx.compose.material3.MaterialTheme
             import androidx.compose.material3.Text
             import androidx.compose.runtime.Composable
+            import androidx.compose.runtime.LaunchedEffect
             import androidx.compose.ui.Alignment
             import androidx.compose.ui.Modifier
+            import androidx.compose.ui.unit.dp
             import androidx.hilt.navigation.compose.hiltViewModel
             import androidx.lifecycle.compose.collectAsStateWithLifecycle
-            import androidx.compose.runtime.LaunchedEffect
             import {namespace}.component.{pascal}Content
 
             @Composable
@@ -1865,13 +2281,31 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                 onNavigateToLogin: () -> Unit,
             ) {{
                 Column(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {{
-                    {pascal}Content(title = title)
-                    Button(onClick = onNavigateToLogin) {{
-                        Text("Go to login")
+                    Text(
+                        text = "Starter home",
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = fadeIn(animationSpec = tween(500, delayMillis = 120)),
+                        exit = fadeOut(animationSpec = tween(200)),
+                    ) {{
+                        {pascal}Content(title = title)
+                    }}
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = fadeIn(animationSpec = tween(500, delayMillis = 240)),
+                        exit = fadeOut(animationSpec = tween(200)),
+                    ) {{
+                        Button(onClick = onNavigateToLogin) {{
+                            Text("Go to login")
+                        }}
                     }}
                 }}
             }}
@@ -1977,12 +2411,34 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
             f"""
             package {namespace}.component
 
+            import androidx.compose.foundation.layout.Column
+            import androidx.compose.foundation.layout.fillMaxWidth
+            import androidx.compose.foundation.layout.padding
+            import androidx.compose.material3.Card
+            import androidx.compose.material3.MaterialTheme
             import androidx.compose.material3.Text
             import androidx.compose.runtime.Composable
+            import androidx.compose.ui.Modifier
+            import androidx.compose.ui.unit.dp
 
             @Composable
             fun {pascal}Content(title: String) {{
-                Text(title)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                ) {{
+                    Column(modifier = Modifier.padding(20.dp)) {{
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Text(
+                            text = "Use this file for reusable feature-local UI blocks before moving anything into core:ui.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }}
+                }}
             }}
             """
         ),
@@ -2000,6 +2456,7 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                 "import androidx.navigation.NavOptions",
                 "import androidx.navigation.compose.composable",
                 f"import {namespace}.{pascal}Route",
+                transition_imports if transition_imports else "",
                 "",
                 f'const val {route_constant} = "{route_name}"',
                 "",
@@ -2010,7 +2467,9 @@ def create_feature_module(root: Path, base_package: str, slug: str, name: str) -
                 f"fun NavGraphBuilder.{camel}Screen(",
                 signature_block if signature_block else "",
                 ") {",
-                f"    composable(route = {route_constant}) {{",
+                f"    composable(",
+                composable_signature,
+                f"    ) {{",
                 route_call_block,
                 "    }",
                 "}",

@@ -25,6 +25,7 @@ If the user does not specify all of them, make reasonable defaults and state the
 2. Read `references/scaffold-spec.md` before creating files.
 3. Read `references/app-shell-patterns.md` before generating or changing the `app` module.
 4. Read `references/core-module-patterns.md` before generating or changing any `core/*` module.
+5. Read `references/animation-patterns.md` and `references/golden-animation-examples.md` before generating navigation transitions, loading overlays, animated app chrome, auth reveal flows, or feature-specific motion.
 5. Read `references/worker-patterns.md` and `references/golden-worker-examples.md` before generating `core:worker`, WorkManager wiring, sync jobs, retry jobs, or `App.kt` worker factory setup.
 6. Read `references/feature-patterns.md` and `references/code-patterns.md` before generating feature code, Hilt modules, navigation files, repository wiring, DataStore wiring, Room wiring, or worker scheduler wiring.
 7. Read `references/golden-file-examples.md` before generating or refining `MainActivity`, `MainNavHost`, starter feature files, repository files, or network module files.
@@ -39,11 +40,14 @@ If the user does not specify all of them, make reasonable defaults and state the
 - Keep `Route` responsible for `ViewModel`, state collection, and side effects by default.
 - Keep `Screen` focused on UI-ready state and callbacks.
 - Keep reusable UI pieces in `component/`, with `dialog/` and `sheet/` only when needed.
+- Keep reusable motion primitives in `core:ui`, especially navigation transitions and loading overlays.
 - Keep repositories in `core:data`, Room in `core:database`, Proto DataStore in `core:datastore`, and Ktor access in `core:network`.
 - Keep WorkManager workers, scheduler abstractions, and enqueue policies in `core:worker`.
 - Avoid introducing domain/use-case layers unless the user explicitly wants a different architecture.
 - Avoid `feature -> feature` dependencies in fresh scaffolds unless the requested flow clearly benefits from it.
 - Default new code to `collectAsStateWithLifecycle()`, `StateFlow` for durable state, and `SharedFlow` for one-off events.
+- Default structural navigation motion to the `AgriDoctorAI` pattern: horizontal half-slide for auth/linear form flows, vertical half-slide for modal/process/camera/result flows.
+- Default auth and setup screens to staged `AnimatedVisibility` reveal rather than dropping all controls on screen at once.
 - Avoid leaving placeholder-shaped app shell or feature files when the user expects a starter project that is ready to extend.
 - Remove or rename any leftover project-specific naming from older examples unless the user explicitly wants it.
 - Prefer Hilt-provided modules over global singleton objects when generating infra code for network, data, or persistence layers.
@@ -98,10 +102,12 @@ Optional flags:
 - Read `references/scaffold-spec.md` for the exact scaffold phases, file map, and generated content expectations.
 - Read `references/app-shell-patterns.md` for the required `app` module shape.
 - Read `references/core-module-patterns.md` for infra module boundaries and DI expectations.
+- Read `references/animation-patterns.md` for motion placement, transition selection, durations, and reveal patterns derived from `AgriDoctorAI`.
 - Read `references/feature-patterns.md` for feature file map, route/screen/viewmodel split, and navigation defaults.
 - Read `references/code-patterns.md` for the default implementation shape of `Route`, `Screen`, `ViewModel`, Hilt modules, repository wiring, DataStore wiring, Room wiring, and feature navigation.
 - Read `references/worker-patterns.md` for `@HiltWorker`, `@AssistedInject`, scheduler abstraction, and `App.kt` WorkManager setup.
 - Read `references/golden-file-examples.md` for the closest file-shape references of the most important starter files.
+- Read `references/golden-animation-examples.md` for the closest file shapes of `ScreenTransitions`, `LoadingOverlay`, animated `MainApp`, staged auth reveal, and purposeful feature-local motion.
 - Read `references/golden-worker-examples.md` for the closest starter file shapes of `SyncWorker`, scheduler bindings, and worker-ready `App.kt`.
 - Read `references/validation-checklist.md` before declaring the scaffold complete.
 

@@ -148,13 +148,19 @@ fun NavController.navigateToHome(
 fun NavGraphBuilder.homeScreen(
     onNavigateToLogin: () -> Unit,
 ) {
-    composable(route = HOME_ROUTE) {
+    composable(
+        route = HOME_ROUTE,
+    ) {
         HomeRoute(
             onNavigateToLogin = onNavigateToLogin,
         )
     }
 }
 ```
+
+When the feature belongs to an auth flow such as `login`, `signup`, or `forgotpassword`, add the shared horizontal transitions from `core:ui/navigation`.
+
+When the feature belongs to a modal/process flow such as `camera`, `processimage`, `settings`, or result screens, add the shared vertical transitions from `core:ui/navigation`.
 
 ## Starter Feature Rules
 
@@ -163,6 +169,8 @@ Use these concrete defaults when generating starter features:
 - `login`: one primary action that emits an event to navigate to home
 - `home`: one top-level destination and one example action that can navigate to login
 - future generic features: show one coherent screen with title state, one content composable, and no cross-feature dependency unless explicitly requested
+- auth-like starter screens should use staged `AnimatedVisibility` reveal for the form block and CTA block
+- loading states should use the shared `core:ui/feedback/LoadingOverlay` instead of a one-off dialog in the feature
 
 ## Do Not Do
 
